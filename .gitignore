@@ -25,4 +25,8 @@ __pycache__/
 .idea/
 *.swp
 *.swo
-.DS_Store
+*.vsix
+*.DS_Store
+
+# Local QA Suite
+qa_test_suite/
