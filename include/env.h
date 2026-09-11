@@ -11,6 +11,7 @@
 
 typedef struct EnvEntry {
     char* name;
+    uint32_t hash;
     Value value;
 } EnvEntry;
 

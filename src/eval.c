@@ -473,12 +473,12 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
 }
 
 Value interpreter_run(Interpreter* interp, ASTNode* program) {
-    if (interp && program) {
-        if (interp->ast_root_count + 1 > interp->ast_root_capacity) {
-            interp->ast_root_capacity = interp->ast_root_capacity < 8 ? 8 : interp->ast_root_capacity * 2;
-            interp->ast_roots = (ASTNode**)realloc(interp->ast_roots, sizeof(ASTNode*) * interp->ast_root_capacity);
-        }
-        interp->ast_roots[interp->ast_root_count++] = program;
+    if (!interp || !program) return val_null();
+    interp->return_flag = false;
+    if (interp->ast_root_count + 1 > interp->ast_root_capacity) {
+        interp->ast_root_capacity = interp->ast_root_capacity < 8 ? 8 : interp->ast_root_capacity * 2;
+        interp->ast_roots = (ASTNode**)realloc(interp->ast_roots, sizeof(ASTNode*) * interp->ast_root_capacity);
     }
+    interp->ast_roots[interp->ast_root_count++] = program;
     return interpreter_eval(interp, program, interp->global_env);
 }

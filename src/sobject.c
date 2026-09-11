@@ -470,6 +470,24 @@ static void format_timestamp(time_t now, char* out, size_t out_sz) {
     strftime(out, out_sz, "%Y-%m-%d %H:%M:%S", &tm_info);
 }
 
+static const char* g_intern_id = "Id";
+static const char* g_intern_created = "CreatedDate";
+static const char* g_intern_modified = "LastModifiedDate";
+static const char* g_intern_deleted = "IsDeleted";
+static uint32_t g_hash_id = 0;
+static uint32_t g_hash_created = 0;
+static uint32_t g_hash_modified = 0;
+static uint32_t g_hash_deleted = 0;
+
+static void ensure_system_field_hashes(void) {
+    if (g_hash_id == 0) {
+        g_hash_id = nadr_hash_fold(g_intern_id, 2);
+        g_hash_created = nadr_hash_fold(g_intern_created, 11);
+        g_hash_modified = nadr_hash_fold(g_intern_modified, 16);
+        g_hash_deleted = nadr_hash_fold(g_intern_deleted, 9);
+    }
+}
+
 static Value mock_db_insert_with_time(SObject* obj, DBTable* table, const char* date_buf, int64_t next_seq) {
     char id15[16];
     char id_full[32];
@@ -481,10 +499,11 @@ static Value mock_db_insert_with_time(SObject* obj, DBTable* table, const char* 
     compute_sfdc_checksum(id15, sfx);
     snprintf(id_full, sizeof(id_full), "%s%s", id15, sfx);
 
-    sobject_put(obj, "Id", val_string(id_full));
-    sobject_put(obj, "CreatedDate", val_string(date_buf));
-    sobject_put(obj, "LastModifiedDate", val_string(date_buf));
-    sobject_put(obj, "IsDeleted", val_bool(false));
+    ensure_system_field_hashes();
+    sobject_put_prehashed(obj, g_intern_id, g_hash_id, 2, val_string(id_full));
+    sobject_put_prehashed(obj, g_intern_created, g_hash_created, 11, val_string(date_buf));
+    sobject_put_prehashed(obj, g_intern_modified, g_hash_modified, 16, val_string(date_buf));
+    sobject_put_prehashed(obj, g_intern_deleted, g_hash_deleted, 9, val_bool(false));
 
     if (table->record_count + 1 > table->record_capacity) {
         table->record_capacity = table->record_capacity < 8 ? 8 : table->record_capacity * 2;
@@ -801,7 +820,19 @@ Value mock_db_query(const char* from_obj, const char** fields, int field_count,
     const char* type_name_interned = sobject_intern_field(from_obj);
     int out_count = field_count + 1; // + implicit Id
 
-    for (int i = 0; i < table->record_count; i++) {
+    int start_i = 0;
+    int end_i = table->record_count;
+    if (where_field && nadr_str_eq(where_field, "Id") && plan->where_kind == QOP_EQ && where_val.type == VAL_STRING) {
+        int direct_match = table_find_by_id(table, where_val.as.string_val);
+        if (direct_match < 0) {
+            sobject_query_plan_free(plan);
+            return result_list;
+        }
+        start_i = direct_match;
+        end_i = direct_match + 1;
+    }
+
+    for (int i = start_i; i < end_i; i++) {
         SObject* src = table->records[i];
         if (src->is_deleted) continue;
         if (!query_row_matches(src, plan, where_val)) continue;

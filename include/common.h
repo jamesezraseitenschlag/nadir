@@ -33,9 +33,9 @@
   typedef union { struct { uint32_t LowPart; int32_t HighPart; }; int64_t QuadPart; } NadirLargeInteger;
   typedef struct { uint32_t dwLowDateTime; uint32_t dwHighDateTime; } NadirFileTime;
   typedef struct { uint32_t dwLowDateTime; uint32_t dwHighDateTime; } NadirSystemTime;
-  __declspec(dllimport) int __stdcall QueryPerformanceFrequency(NadirLargeInteger* const freq);
-  __declspec(dllimport) int __stdcall QueryPerformanceCounter(NadirLargeInteger* const counter);
-  __declspec(dllimport) void __stdcall GetSystemTimeAsFileTime(NadirFileTime* const ft);
+  __declspec(dllimport) int __stdcall QueryPerformanceFrequency(void* const freq);
+  __declspec(dllimport) int __stdcall QueryPerformanceCounter(void* const counter);
+  __declspec(dllimport) void __stdcall GetSystemTimeAsFileTime(void* const ft);
   #endif
 #endif
 
