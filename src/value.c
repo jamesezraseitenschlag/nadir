@@ -5,6 +5,7 @@
 
 #include "value.h"
 #include "sobject.h"
+#include "nadir_hash.h"
 
 Value val_null(void) {
     Value v;
@@ -55,16 +56,6 @@ Value val_list(void) {
     val.as.list_val->items = NULL;
     val.as.list_val->count = 0;
     val.as.list_val->capacity = 0;
-    return val;
-}
-
-Value val_map(void) {
-    Value val;
-    val.type = VAL_MAP;
-    val.as.map_val = (ValueMap*)malloc(sizeof(ValueMap));
-    val.as.map_val->entries = NULL;
-    val.as.map_val->count = 0;
-    val.as.map_val->capacity = 0;
     return val;
 }
 
@@ -119,42 +110,116 @@ int val_list_size(Value* list_val) {
     return list_val->as.list_val->count;
 }
 
+static inline uint64_t compute_val_hash(Value v) {
+    switch (v.type) {
+        case VAL_INT:
+            return (uint64_t)v.as.int_val * 11400714785074694791ULL;
+        case VAL_DOUBLE: {
+            uint64_t u;
+            memcpy(&u, &v.as.double_val, sizeof(uint64_t));
+            return u * 11400714785074694791ULL;
+        }
+        case VAL_BOOL:
+            return v.as.bool_val ? 0x9e3779b97f4a7c15ULL : 0x123456789abcdef0ULL;
+        case VAL_STRING:
+            if (!v.as.string_val) return 0;
+            return (uint64_t)hash_string_case_xxhash(v.as.string_val);
+        case VAL_SOBJECT:
+            return (uint64_t)(uintptr_t)v.as.sobject_val * 11400714785074694791ULL;
+        case VAL_INSTANCE:
+            return (uint64_t)(uintptr_t)v.as.instance_val * 11400714785074694791ULL;
+        default:
+            return 0;
+    }
+}
+
+Value val_map(void) {
+    Value val;
+    val.type = VAL_MAP;
+    val.as.map_val = (ValueMap*)malloc(sizeof(ValueMap));
+    val.as.map_val->capacity = 32;
+    val.as.map_val->count = 0;
+    val.as.map_val->entries = (MapEntry*)calloc(val.as.map_val->capacity, sizeof(MapEntry));
+    return val;
+}
+
+static void val_map_rehash(ValueMap* map, int new_cap) {
+    MapEntry* old_entries = map->entries;
+    int old_cap = map->capacity;
+
+    map->entries = (MapEntry*)calloc(new_cap, sizeof(MapEntry));
+    map->capacity = new_cap;
+    map->count = 0;
+
+    uint64_t mask = (uint64_t)(new_cap - 1);
+    for (int i = 0; i < old_cap; i++) {
+        if (old_entries[i].occupied) {
+            uint64_t h = old_entries[i].hash;
+            int idx = (int)(h & mask);
+            while (map->entries[idx].occupied) {
+                idx = (idx + 1) & (int)mask;
+            }
+            map->entries[idx].hash = h;
+            map->entries[idx].key = old_entries[i].key;
+            map->entries[idx].value = old_entries[i].value;
+            map->entries[idx].occupied = true;
+            map->count++;
+        }
+    }
+    if (old_entries) free(old_entries);
+}
+
 void val_map_put(Value* map_val, Value key, Value val) {
     if (map_val->type != VAL_MAP) return;
     ValueMap* map = map_val->as.map_val;
-    // check key
-    for (int i = 0; i < map->count; i++) {
-        if (val_equals(*map->entries[i].key, key)) {
-            *map->entries[i].value = val;
+    if (!map) return;
+
+    if (map->capacity == 0 || !map->entries) {
+        map->capacity = 32;
+        map->entries = (MapEntry*)calloc(map->capacity, sizeof(MapEntry));
+    } else if (map->count * 4 >= map->capacity * 3) {
+        val_map_rehash(map, map->capacity * 2);
+    }
+
+    uint64_t h = compute_val_hash(key);
+    uint64_t mask = (uint64_t)(map->capacity - 1);
+    int idx = (int)(h & mask);
+
+    while (map->entries[idx].occupied) {
+        if (map->entries[idx].hash == h && val_equals(map->entries[idx].key, key)) {
+            map->entries[idx].value = val;
             return;
         }
+        idx = (idx + 1) & (int)mask;
     }
-    if (map->count + 1 > map->capacity) {
-        map->capacity = map->capacity < 8 ? 8 : map->capacity * 2;
-        map->entries = (MapEntry*)realloc(map->entries, sizeof(MapEntry) * map->capacity);
-    }
-    Value* k = (Value*)malloc(sizeof(Value));
-    Value* v = (Value*)malloc(sizeof(Value));
-    *k = key;
-    *v = val;
-    map->entries[map->count].key = k;
-    map->entries[map->count].value = v;
+
+    map->entries[idx].hash = h;
+    map->entries[idx].key = key;
+    map->entries[idx].value = val;
+    map->entries[idx].occupied = true;
     map->count++;
 }
 
 Value val_map_get(Value* map_val, Value key) {
     if (map_val->type != VAL_MAP) return val_null();
     ValueMap* map = map_val->as.map_val;
-    for (int i = 0; i < map->count; i++) {
-        if (val_equals(*map->entries[i].key, key)) {
-            return *map->entries[i].value;
+    if (!map || map->count == 0 || map->capacity == 0 || !map->entries) return val_null();
+
+    uint64_t h = compute_val_hash(key);
+    uint64_t mask = (uint64_t)(map->capacity - 1);
+    int idx = (int)(h & mask);
+
+    while (map->entries[idx].occupied) {
+        if (map->entries[idx].hash == h && val_equals(map->entries[idx].key, key)) {
+            return map->entries[idx].value;
         }
+        idx = (idx + 1) & (int)mask;
     }
     return val_null();
 }
 
 int val_map_size(Value* map_val) {
-    if (map_val->type != VAL_MAP) return 0;
+    if (map_val->type != VAL_MAP || !map_val->as.map_val) return 0;
     return map_val->as.map_val->count;
 }
 
@@ -218,20 +283,25 @@ char* val_to_string(Value v) {
             size_t size = 128;
             char* out = (char*)malloc(size);
             strcpy(out, "{");
-            for (int i = 0; i < v.as.map_val->count; i++) {
-                char* ks = val_to_string(*v.as.map_val->entries[i].key);
-                char* vs = val_to_string(*v.as.map_val->entries[i].value);
-                size_t needed = strlen(out) + strlen(ks) + strlen(vs) + 8;
-                if (needed > size) {
-                    size = needed * 2;
-                    out = (char*)realloc(out, size);
+            int printed = 0;
+            if (v.as.map_val && v.as.map_val->entries) {
+                for (int i = 0; i < v.as.map_val->capacity; i++) {
+                    if (!v.as.map_val->entries[i].occupied) continue;
+                    char* ks = val_to_string(v.as.map_val->entries[i].key);
+                    char* vs = val_to_string(v.as.map_val->entries[i].value);
+                    size_t needed = strlen(out) + strlen(ks) + strlen(vs) + 8;
+                    if (needed > size) {
+                        size = needed * 2;
+                        out = (char*)realloc(out, size);
+                    }
+                    if (printed > 0) strcat(out, ", ");
+                    strcat(out, ks);
+                    strcat(out, " => ");
+                    strcat(out, vs);
+                    free(ks);
+                    free(vs);
+                    printed++;
                 }
-                if (i > 0) strcat(out, ", ");
-                strcat(out, ks);
-                strcat(out, " => ");
-                strcat(out, vs);
-                free(ks);
-                free(vs);
             }
             strcat(out, "}");
             return out;

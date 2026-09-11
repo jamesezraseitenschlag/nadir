@@ -66,5 +66,7 @@ void interpreter_free(Interpreter* interp);
 Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env);
 Value interpreter_run(Interpreter* interp, ASTNode* program);
 void interpreter_register_class(Interpreter* interp, ASTNode* class_decl);
+ApexClassDef* find_class(Interpreter* interp, const char* name);
+ApexMethod* find_method(Interpreter* interp, ApexClassDef* klass, const char* name);
 
 #endif

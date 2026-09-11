@@ -1,0 +1,26 @@
+{
+  "name": "@nadir/cli",
+  "version": "1.0.0",
+  "description": "Cross-platform Node.js wrapper for the Nadir native Salesforce Apex runtime engine",
+  "main": "lib/index.js",
+  "bin": {
+    "nadir": "./bin/nadir.js",
+    "nadir-apex": "./bin/nadir.js"
+  },
+  "scripts": {
+    "test": "node bin/nadir.js --help"
+  },
+  "keywords": [
+    "salesforce",
+    "apex",
+    "sfdx",
+    "runtime",
+    "interpreter",
+    "cli"
+  ],
+  "author": "James Ezra Seitenschlag",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

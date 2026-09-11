@@ -182,8 +182,10 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
 
         case NODE_IDENTIFIER: {
             const char* name = node->as.identifier.name;
+            uint32_t hash = node->as.identifier.hash;
+            if (hash == 0 && name) hash = nadr_hash_str(name);
             Value v;
-            if (env_get(env, name, &v)) {
+            if (env_get_prehashed(env, name, hash, &v)) {
                 return v;
             }
             if (string_equal_case(name, "system") || string_equal_case(name, "math") || string_equal_case(name, "string") ||
@@ -202,7 +204,9 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
             if (node->as.var_decl.init) {
                 init_val = interpreter_eval(interp, node->as.var_decl.init, env);
             }
-            env_define(env, node->as.var_decl.var_name, init_val);
+            uint32_t hash = node->as.var_decl.hash;
+            if (hash == 0 && node->as.var_decl.var_name) hash = nadr_hash_str(node->as.var_decl.var_name);
+            env_define_prehashed(env, node->as.var_decl.var_name, hash, init_val);
             return init_val;
         }
 
@@ -289,13 +293,16 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
             if (coll.type != VAL_LIST || !coll.as.list_val) return val_null();
             Value last = val_null();
             ValueArray* arr = coll.as.list_val;
+            Environment* loop_env = env_new(env);
+            const char* item_name = node->as.for_each.item_name;
+            uint32_t item_hash = node->as.for_each.item_hash;
+            if (item_hash == 0 && item_name) item_hash = nadr_hash_str(item_name);
             for (int i = 0; i < arr->count; i++) {
-                Environment* loop_env = env_new(env);
-                env_define(loop_env, node->as.for_each.item_name, arr->items[i]);
+                env_define_prehashed(loop_env, item_name, item_hash, arr->items[i]);
                 last = interpreter_eval(interp, node->as.for_each.body, loop_env);
-                env_free(loop_env);
                 if (interp->return_flag) break;
             }
+            env_free(loop_env);
             return last;
         }
 
@@ -426,15 +433,25 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
                 if (string_equal_case(op, "delete")) return mock_db_delete(target.as.sobject_val);
                 if (string_equal_case(op, "undelete") || string_equal_case(op, "merge")) return target;
             } else if (target.type == VAL_LIST && target.as.list_val) {
-                for (int i = 0; i < target.as.list_val->count; i++) {
-                    Value item = target.as.list_val->items[i];
+                // Bulk DML: gather the SObjects and hand the whole statement to
+                // the storage layer once, so the transaction timestamp, the id
+                // sequence and the table capacity growth are all amortised over
+                // the batch instead of repeating per row.
+                ValueArray* arr = target.as.list_val;
+                SObject** batch = (SObject**)malloc(sizeof(SObject*) * (size_t)(arr->count > 0 ? arr->count : 1));
+                if (!batch) abort();
+                int n = 0;
+                for (int i = 0; i < arr->count; i++) {
+                    Value item = arr->items[i];
                     if (item.type == VAL_SOBJECT && item.as.sobject_val) {
-                        interp->limits.dml_rows++;
-                        if (string_equal_case(op, "insert") || string_equal_case(op, "upsert")) mock_db_insert(item.as.sobject_val);
-                        if (string_equal_case(op, "update")) mock_db_update(item.as.sobject_val);
-                        if (string_equal_case(op, "delete")) mock_db_delete(item.as.sobject_val);
+                        batch[n++] = item.as.sobject_val;
                     }
                 }
+                interp->limits.dml_rows += n;
+                if (n > 0) {
+                    mock_db_dml_bulk(op, batch, n);
+                }
+                free(batch);
                 return target;
             }
             return val_null();
@@ -463,12 +480,12 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
 }
 
 Value interpreter_run(Interpreter* interp, ASTNode* program) {
-    if (interp && program) {
-        if (interp->ast_root_count + 1 > interp->ast_root_capacity) {
-            interp->ast_root_capacity = interp->ast_root_capacity < 8 ? 8 : interp->ast_root_capacity * 2;
-            interp->ast_roots = (ASTNode**)realloc(interp->ast_roots, sizeof(ASTNode*) * interp->ast_root_capacity);
-        }
-        interp->ast_roots[interp->ast_root_count++] = program;
+    if (!interp || !program) return val_null();
+    interp->return_flag = false;
+    if (interp->ast_root_count + 1 > interp->ast_root_capacity) {
+        interp->ast_root_capacity = interp->ast_root_capacity < 8 ? 8 : interp->ast_root_capacity * 2;
+        interp->ast_roots = (ASTNode**)realloc(interp->ast_roots, sizeof(ASTNode*) * interp->ast_root_capacity);
     }
+    interp->ast_roots[interp->ast_root_count++] = program;
     return interpreter_eval(interp, program, interp->global_env);
 }

@@ -18,8 +18,25 @@
 #if defined(_WIN32)
   #define strcasecmp _stricmp
   #define strncasecmp _strnicmp
+  #define NADIR_HAS_CLOCK_GETTIME 0
 #else
   #include <strings.h>
+  #define NADIR_HAS_CLOCK_GETTIME 1
+#endif
+
+// Win32 does not ship clock_gettime in older SDKs and <windows.h> would
+// collide with our own TokenType enum, so the two QPC/FT entry points we
+// need are declared here by hand and resolved from kernel32 at link time.
+#if !NADIR_HAS_CLOCK_GETTIME
+  #ifndef NADIR_WIN32_TYPES_DECLARED
+  #define NADIR_WIN32_TYPES_DECLARED
+  typedef union { struct { uint32_t LowPart; int32_t HighPart; }; int64_t QuadPart; } NadirLargeInteger;
+  typedef struct { uint32_t dwLowDateTime; uint32_t dwHighDateTime; } NadirFileTime;
+  typedef struct { uint32_t dwLowDateTime; uint32_t dwHighDateTime; } NadirSystemTime;
+  __declspec(dllimport) int __stdcall QueryPerformanceFrequency(void* const freq);
+  __declspec(dllimport) int __stdcall QueryPerformanceCounter(void* const counter);
+  __declspec(dllimport) void __stdcall GetSystemTimeAsFileTime(void* const ft);
+  #endif
 #endif
 
 #define STRCASECMP strcasecmp
@@ -55,6 +72,17 @@ static inline uint32_t nadr_hash_slice(const char* s, int len) {
 static inline bool nadr_str_eq(const char* a, const char* b) {
     if (a == b) return true;
     if (!a || !b) return false;
+    // Cheap rejections first. Apex field lookup compares a probe name against
+    // every field on the record, and most probes differ in length or in the
+    // very first character, so strcasecmp almost never has to run.
+    if (a[0] != b[0]) {
+        unsigned char ca = (unsigned char)a[0];
+        unsigned char cb = (unsigned char)b[0];
+        if (ca >= 'A' && ca <= 'Z') ca = (unsigned char)(ca + 32);
+        if (cb >= 'A' && cb <= 'Z') cb = (unsigned char)(cb + 32);
+        if (ca != cb) return false;
+    }
+    if (a[1] == '\0' || b[1] == '\0') return a[1] == b[1];
     return strcasecmp(a, b) == 0;
 }
 
@@ -64,6 +92,42 @@ static inline bool nadr_slice_eq(const char* a, int a_len, const char* b, int b_
     return strncasecmp(a, b, a_len) == 0;
 }
 
+
+// monotonic millisecond clock, used for governor timing and benchmarks.
+// time(NULL) only has second resolution, which is useless for profiling.
+static inline int64_t nadr_monotonic_ms(void) {
+#if NADIR_HAS_CLOCK_GETTIME
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#else
+    NadirLargeInteger freq, now;
+    static NadirLargeInteger cached_freq = {0};
+    if (cached_freq.QuadPart == 0) QueryPerformanceFrequency(&cached_freq);
+    freq = cached_freq;
+    QueryPerformanceCounter(&now);
+    if (freq.QuadPart == 0) return 0;
+    return (int64_t)((now.QuadPart * 1000) / freq.QuadPart);
+#endif
+}
+
+// wall clock in milliseconds since the unix epoch (Apex semantics).
+// This used to be time(NULL) * 1000, which silently quantised every
+// measurement to whole seconds.
+static inline int64_t nadir_epoch_ms(void) {
+#if NADIR_HAS_CLOCK_GETTIME
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) return 0;
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#else
+    NadirFileTime ft;
+    int64_t ticks;
+    GetSystemTimeAsFileTime(&ft);
+    ticks = ((int64_t)ft.dwHighDateTime << 32) | (int64_t)ft.dwLowDateTime;
+    // 100ns ticks since 1601-01-01 -> ms since 1970-01-01
+    return (ticks / 10000LL) - 11644473600000LL;
+#endif
+}
 
 static inline char* nadr_strdup(const char* s) {
     if (!s) return NULL;

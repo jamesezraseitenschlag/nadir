@@ -5,6 +5,7 @@
 
 #include "eval_internal.h"
 #include "metadata.h"
+#include "nadir_hash.h"
 #include <time.h>
 #include <math.h>
 
@@ -66,7 +67,12 @@ Value eval_system_builtins(Interpreter* interp, ASTNode* node, Environment* env,
             return val_string(buf);
         }
         if (string_equal_case(method_name, "currenttimemillis")) {
-            return val_int((int64_t)time(NULL) * 1000);
+            return val_int(nadir_epoch_ms());
+        }
+        // monotonic high resolution clock for profiling / benchmarks.
+        // currentTimeMillis is a wall clock and can jump; this cannot.
+        if (string_equal_case(method_name, "nanotime") || string_equal_case(method_name, "monotonicmillis")) {
+            return val_int(nadr_monotonic_ms());
         }
         return val_null();
     }
@@ -233,6 +239,46 @@ Value eval_system_builtins(Interpreter* interp, ASTNode* node, Environment* env,
                 val_map_put(&map, val_string(ps->objects[i].full_name), val_string(ps->objects[i].label));
             }
             return map;
+        }
+        return val_null();
+    }
+
+    if (string_equal_case(receiver, "crypto")) {
+        *handled = true;
+        if (string_equal_case(method_name, "murmur3") && node->as.call.args.count >= 1) {
+            Value input = interpreter_eval(interp, node->as.call.args.nodes[0], env);
+            const char* s = input.type == VAL_STRING ? input.as.string_val : val_to_string(input);
+            uint32_t h = murmur3_32(s, strlen(s), 0x9747b28c);
+            char hex[16];
+            snprintf(hex, sizeof(hex), "%08x", h);
+            return val_string(hex);
+        }
+        if (string_equal_case(method_name, "murmur3_128") && node->as.call.args.count >= 1) {
+            Value input = interpreter_eval(interp, node->as.call.args.nodes[0], env);
+            const char* s = input.type == VAL_STRING ? input.as.string_val : val_to_string(input);
+            uint8_t out[16];
+            murmur3_128(s, strlen(s), 0x9747b28c, out);
+            char hex[36];
+            for (int i = 0; i < 16; i++) {
+                snprintf(hex + i * 2, 3, "%02x", out[i]);
+            }
+            return val_string(hex);
+        }
+        if (string_equal_case(method_name, "xxhash32") && node->as.call.args.count >= 1) {
+            Value input = interpreter_eval(interp, node->as.call.args.nodes[0], env);
+            const char* s = input.type == VAL_STRING ? input.as.string_val : val_to_string(input);
+            uint32_t h = xxhash32(s, strlen(s), 0);
+            char hex[16];
+            snprintf(hex, sizeof(hex), "%08x", h);
+            return val_string(hex);
+        }
+        if (string_equal_case(method_name, "xxhash64") && node->as.call.args.count >= 1) {
+            Value input = interpreter_eval(interp, node->as.call.args.nodes[0], env);
+            const char* s = input.type == VAL_STRING ? input.as.string_val : val_to_string(input);
+            uint64_t h = xxhash64(s, strlen(s), 0);
+            char hex[24];
+            snprintf(hex, sizeof(hex), "%016llx", (unsigned long long)h);
+            return val_string(hex);
         }
         return val_null();
     }

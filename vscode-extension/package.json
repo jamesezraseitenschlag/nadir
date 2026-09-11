@@ -1,0 +1,105 @@
+{
+  "name": "nadir-apex-runner",
+  "displayName": "Nadir Apex Runner",
+  "description": "Lightning-fast native Salesforce Apex execution, REPL, and SFDX metadata environment for VS Code",
+  "version": "1.0.0",
+  "publisher": "james-seitenschlag",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Other"
+  ],
+  "keywords": [
+    "apex",
+    "salesforce",
+    "sfdx",
+    "nadir",
+    "runtime",
+    "repl"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:apex",
+    "onLanguage:apex-anon",
+    "workspaceContains:sfdx-project.json"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "nadir.runFile",
+        "title": "Nadir: Run Current Apex File",
+        "icon": "$(play)"
+      },
+      {
+        "command": "nadir.runSelection",
+        "title": "Nadir: Execute Selected Apex Code"
+      },
+      {
+        "command": "nadir.startRepl",
+        "title": "Nadir: Open Interactive Apex REPL",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "nadir.initProject",
+        "title": "Nadir: Initialize SFDX Project & Metadata",
+        "icon": "$(database)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "nadir.runFile",
+          "group": "navigation",
+          "when": "resourceExtname =~ /\\.(cls|apex|trigger)$/"
+        },
+        {
+          "command": "nadir.startRepl",
+          "group": "navigation",
+          "when": "resourceExtname =~ /\\.(cls|apex|trigger)$/"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nadir.runFile",
+          "group": "nadir@1",
+          "when": "resourceExtname =~ /\\.(cls|apex|trigger)$/"
+        },
+        {
+          "command": "nadir.runSelection",
+          "group": "nadir@2",
+          "when": "editorHasSelection && resourceExtname =~ /\\.(cls|apex|trigger)$/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "nadir.initProject",
+          "group": "nadir@1"
+        },
+        {
+          "command": "nadir.runFile",
+          "group": "nadir@2",
+          "when": "resourceExtname =~ /\\.(cls|apex|trigger)$/"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Nadir Apex Runner",
+      "properties": {
+        "nadir.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the custom nadir executable binary."
+        },
+        "nadir.clearTerminalBeforeRun": {
+          "type": "boolean",
+          "default": true,
+          "description": "Clear terminal output before running an Apex script."
+        }
+      }
+    }
+  }
+}

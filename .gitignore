@@ -8,6 +8,7 @@
 *.dylib
 bin/
 build/
+build*/
 dist/_CPack_Packages/
 
 # Cloned Test Repositories & External Datasets
@@ -25,4 +26,11 @@ __pycache__/
 .idea/
 *.swp
 *.swo
-.DS_Store
+*.vsix
+*.DS_Store
+
+# Local QA Suite & Frontend Mock
+qa_test_suite/
+local_salesforce_ui/
+lwc_test_suite/
+lwc_tests/

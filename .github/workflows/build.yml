@@ -1,8 +1,8 @@
-name: Build and Package
+name: Nadir CI & Packaging
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 'feature/**' ]
   pull_request:
     branches: [ main, master ]
   release:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build on ${{ matrix.os }}
+    name: Build & Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -32,8 +32,17 @@ jobs:
       - name: Build executable
         run: cmake --build build --config Release
 
-      - name: Run test suite
+      - name: Run Salesforce Test Suite
         run: python test_runner.py
+
+      - name: Run SFDX Project Initialization Test
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            ./build/Release/nadir.exe --init test_repos/apex-recipes
+          else
+            ./build/nadir --init test_repos/apex-recipes
+          fi
 
       - name: Package with CPack
         run: cpack --config build/CPackConfig.cmake -C Release -B dist

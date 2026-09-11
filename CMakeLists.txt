@@ -17,13 +17,16 @@ target_include_directories(nadir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Compiler warnings and options
 if(MSVC)
-    target_compile_options(nadir PRIVATE /W4 /utf-8)
+    target_compile_options(nadir PRIVATE /W4 /utf-8 /wd4996)
     target_compile_definitions(nadir PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_link_libraries(nadir PRIVATE ws2_32)
 else()
     target_compile_options(nadir PRIVATE -Wall -Wextra -Wno-unused-parameter)
     # Link standard math library on POSIX platforms (Linux, macOS, BSD)
     if(NOT WIN32)
         target_link_libraries(nadir PRIVATE m)
+    else()
+        target_link_libraries(nadir PRIVATE ws2_32)
     endif()
 endif()
 

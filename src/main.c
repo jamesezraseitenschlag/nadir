@@ -8,6 +8,7 @@
 #include "parser.h"
 #include "eval.h"
 #include "metadata.h"
+#include "nadir_daemon.h"
 
 static Value run_source(const char* source, Interpreter* interp, bool is_repl) {
     Lexer lexer;
@@ -171,6 +172,37 @@ int main(int argc, char* argv[]) {
             if (strcmp(argv[i], "--init") == 0 || strcmp(argv[i], "init") == 0) {
                 const char* p = (i + 1 < argc) ? argv[++i] : ".";
                 nadir_project_init(p, interp);
+            } else if (strcmp(argv[i], "--daemon") == 0 || strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "daemon") == 0) {
+                int port = 8042;
+                if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') {
+                    port = atoi(argv[++i]);
+                }
+                int ret = nadir_daemon_start(port, ".", interp);
+                interpreter_free(interp);
+                return ret;
+            } else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
+                run_source(argv[++i], interp, false);
+            } else if (strcmp(argv[i], "-") == 0) {
+                // Read entire stdin and execute as batch script
+                size_t cap = 65536;
+                size_t len = 0;
+                char* buf = (char*)malloc(cap);
+                if (buf) {
+                    size_t n;
+                    while ((n = fread(buf + len, 1, cap - len - 1, stdin)) > 0) {
+                        len += n;
+                        if (len + 1024 >= cap) {
+                            cap *= 2;
+                            buf = (char*)realloc(buf, cap);
+                            if (!buf) break;
+                        }
+                    }
+                    if (buf) {
+                        buf[len] = '\0';
+                        run_source(buf, interp, false);
+                        free(buf);
+                    }
+                }
             } else {
                 char* source = read_file(argv[i]);
                 if (source) {
