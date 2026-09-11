@@ -4,10 +4,10 @@ Instant native Salesforce Apex execution, REPL, and SFDX metadata initialization
 
 ## Features
 
-- ⚡ **Lightning-Fast Execution**: Run Apex scripts (`.cls`, `.apex`, `.trigger`) locally without waiting for cloud deployment.
-- 💬 **Interactive REPL**: Launch a native Nadir REPL session directly in your VS Code terminal.
-- 📦 **SFDX Metadata Integration**: Automatically discovers and initializes CustomObjects (`*__c`), Custom Metadata (`*__mdt`), Custom Fields, and platform mock tables from `sfdx-project.json` and `force-app`.
-- 🎯 **Run Selections**: Highlight any block of Apex code in the editor and execute it immediately.
+- **Lightning-Fast Execution**: Run Apex scripts (`.cls`, `.apex`, `.trigger`) locally without waiting for cloud deployment.
+- **Interactive REPL**: Launch a native Nadir REPL session directly in your VS Code terminal.
+- **SFDX Metadata Integration**: Automatically discovers and initializes CustomObjects (`*__c`), Custom Metadata (`*__mdt`), Custom Fields, and platform mock tables from `sfdx-project.json` and `force-app`.
+- **Run Selections**: Highlight any block of Apex code in the editor and execute it immediately.
 
 ## Commands
 
