@@ -1,3 +1,7 @@
+// ApexLexer.g4
+// Sourced and adapted from antlr/grammars-v4, Salesforce apex-jorje, and PMD Apex AST.
+// Big thanks to the open source grammar wizards who mapped this out so we didn't have to suffer alone.
+
 lexer grammar ApexLexer;
 
 // Keywords (Case-Insensitive handling)

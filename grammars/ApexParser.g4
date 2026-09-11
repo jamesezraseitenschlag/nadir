@@ -1,3 +1,7 @@
+// ApexParser.g4
+// Sourced and adapted from antlr/grammars-v4, Salesforce apex-jorje, and PMD Apex AST.
+// Standing on the shoulders of giants (or at least people who actually enjoy writing BNF rules).
+
 parser grammar ApexParser;
 
 options {

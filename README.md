@@ -23,6 +23,12 @@ Nadir is deliberately designed without third-party runtime library requirements.
 - **Benchmark Suite**: [Salesforce Trailhead Apps Apex Recipes](https://github.com/trailheadapps/apex-recipes) for language conformance testing.
 - **Language Reference**: [Salesforce Apex Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/).
 
+### Grammar Specifications & Origins
+Credit where credit is due — the reference ANTLR4 grammars in `grammars/` were sourced and adapted from:
+- [ANTLR grammars-v4 Community Repository](https://github.com/antlr/grammars-v4) for foundational grammar patterns.
+- [Salesforce apex-jorje & PMD Apex Parser](https://github.com/pmd/pmd/tree/master/pmd-apex) for Apex-specific AST structure and keyword mappings.
+- Turns out, not having to manually invent language grammar rules from scratch is a surprisingly good strategy.
+
 ---
 
 ## Architecture Overview
