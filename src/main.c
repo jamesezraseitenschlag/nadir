@@ -8,28 +8,6 @@
 #include "parser.h"
 #include "eval.h"
 
-static char* read_file(const char* path) {
-    FILE* file = fopen(path, "rb");
-    if (!file) {
-        fprintf(stderr, "Error: Could not open file \"%s\".\n", path);
-        return NULL;
-    }
-    fseek(file, 0L, SEEK_END);
-    size_t file_size = ftell(file);
-    rewind(file);
-
-    char* buffer = (char*)malloc(file_size + 1);
-    if (!buffer) {
-        fprintf(stderr, "Error: Not enough memory to read \"%s\".\n", path);
-        fclose(file);
-        return NULL;
-    }
-    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
-    buffer[bytes_read] = '\0';
-    fclose(file);
-    return buffer;
-}
-
 static Value run_source(const char* source, Interpreter* interp, bool is_repl) {
     Lexer lexer;
     lexer_init(&lexer, source);
@@ -112,7 +90,34 @@ static void start_repl(void) {
                 continue;
             }
             if (STRNCASECMP(trimmed, "help", 4) == 0) {
-                printf("commands: exit, clear, help\n\n");
+                printf("commands: exit, clear, help, import(<path>)\n\n");
+                continue;
+            }
+            if (STRNCASECMP(trimmed, "import", 6) == 0) {
+                char* p = trimmed + 6;
+                while (*p == ' ' || *p == '\t' || *p == '(') p++;
+                if (*p == '\'' || *p == '"') p++;
+                char path_buf[512] = {0};
+                int plen = 0;
+                while (*p && *p != '\'' && *p != '"' && *p != ')' && *p != ';' && plen < 510) {
+                    path_buf[plen++] = *p++;
+                }
+                while (plen > 0 && (path_buf[plen - 1] == ' ' || path_buf[plen - 1] == '\t')) {
+                    path_buf[--plen] = '\0';
+                }
+                path_buf[plen] = '\0';
+                if (plen > 0) {
+                    char* file_src = read_file(path_buf);
+                    if (file_src) {
+                        run_source(file_src, interp, false);
+                        free(file_src);
+                        printf("[imported] %s\n", path_buf);
+                    } else {
+                        fprintf(stderr, "Error: Could not import file \"%s\"\n", path_buf);
+                    }
+                } else {
+                    fprintf(stderr, "Usage: import(path/to/class.cls)\n");
+                }
                 continue;
             }
         }

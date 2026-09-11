@@ -89,6 +89,24 @@ static inline char* nadr_strndup(const char* s, int len) {
     return p;
 }
 
+static inline char* nadr_read_file(const char* path) {
+    if (!path) return NULL;
+    FILE* file = fopen(path, "rb");
+    if (!file) return NULL;
+    fseek(file, 0L, SEEK_END);
+    size_t file_size = ftell(file);
+    rewind(file);
+    char* buffer = (char*)malloc(file_size + 1);
+    if (!buffer) {
+        fclose(file);
+        return NULL;
+    }
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
+    buffer[bytes_read] = '\0';
+    fclose(file);
+    return buffer;
+}
+
 // old aliases, pain
 #define string_equal_case nadr_str_eq
 #define slice_equal_case nadr_slice_eq
@@ -96,5 +114,6 @@ static inline char* nadr_strndup(const char* s, int len) {
 #define duplicate_slice nadr_strndup
 #define hash_string_case nadr_hash_str
 #define hash_slice_case nadr_hash_slice
+#define read_file nadr_read_file
 
 #endif
