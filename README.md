@@ -173,10 +173,12 @@ cmake --build build-wasm
 
 ---
 
-## Usage
+## Usage & Execution Guide
 
-### Interactive REPL Mode
-Running the executable without arguments launches the interactive REPL:
+Nadir provides multiple execution modes for running Apex code, from interactive shells to multi-file batch execution and native C API embedding:
+
+### 1. Interactive REPL Mode
+Running the binary without arguments opens the interactive shell:
 
 ```bash
 ./build/nadir
@@ -197,11 +199,65 @@ Type "help", "clear", or "exit" to quit.
 >>> exit
 ```
 
-### Script Execution
-Execute an Apex source file directly:
+- **REPL Commands**: `help` (list commands), `clear` / `cls` (clear screen), `exit` / `quit` (terminate).
+- **Multiline Blocks**: Unbalanced braces `{ ... }`, parentheses `( ... )`, or brackets `[ ... ]` automatically enter multiline continuation mode.
+
+---
+
+### 2. Single-Script Execution & Auto-Loading
+Execute any standalone `.apex` or `.cls` file:
 
 ```bash
 ./build/nadir examples/enterprise_order_management.apex
+```
+
+If a script references a class that isn't pre-loaded (e.g. `new AccountService()`), Nadir automatically locates, parses, and registers `AccountService.cls` from the current working directory on demand.
+
+---
+
+### 3. Multi-File Modular Execution
+Load multiple dependency classes into a shared interpreter session followed by a driver script:
+
+```bash
+./build/nadir examples/inheritance_test/Animal.cls \
+              examples/inheritance_test/Mammal.cls \
+              examples/inheritance_test/Dog.cls \
+              examples/inheritance_test/main.apex
+```
+
+Classes, interfaces, and methods defined in preceding files become immediately visible to all subsequent files without extra boilerplate.
+
+---
+
+### 4. Embedding in Native C Applications
+Embed the Nadir runtime directly into C/C++ applications via the public API:
+
+```c
+#include "eval.h"
+#include "parser.h"
+#include "lexer.h"
+
+int main(void) {
+    Interpreter* interp = interpreter_new();
+
+    const char* apex_code = 
+        "Account a = new Account(Name = 'Acme'); insert a;\n"
+        "System.debug('Created account with ID: ' + a.Id);\n";
+
+    Lexer lexer;
+    lexer_init(&lexer, apex_code);
+
+    Parser parser;
+    parser_init(&parser, &lexer);
+
+    ASTNode* program = parser_parse(&parser);
+    if (!parser.had_error && program) {
+        Value result = interpreter_run(interp, program);
+    }
+
+    interpreter_free(interp);
+    return 0;
+}
 ```
 
 ---
