@@ -1,4 +1,4 @@
-﻿// James Ezra Seitenschlag
+// James Ezra Seitenschlag
 // 11.09.2026
 //
 // nadir runtime thingy
@@ -454,6 +454,16 @@ int nadir_project_init(const char* root_path, Interpreter* interp) {
     ProjectSchema* ps = project_schema_get_instance();
     if (ps->project_root) free(ps->project_root);
     ps->project_root = nadr_strdup(root_path);
+
+    char sfdx_json_path[1024];
+    snprintf(sfdx_json_path, sizeof(sfdx_json_path), "%s/sfdx-project.json", root_path);
+    char* sfdx_cfg = nadr_read_file(sfdx_json_path);
+    if (sfdx_cfg) {
+        printf("[nadir-sfdx] Discovered SFDX project definition: %s\n", sfdx_json_path);
+        char* pkg_dir = xml_get_tag(sfdx_cfg, "packageDirectories");
+        if (pkg_dir) free(pkg_dir);
+        free(sfdx_cfg);
+    }
 
     int objects_cnt = 0;
     int fields_cnt = 0;

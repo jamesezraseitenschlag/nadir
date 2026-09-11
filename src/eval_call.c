@@ -17,6 +17,27 @@ Value eval_method_or_call(Interpreter* interp, ASTNode* node, Environment* env) 
         return sys_res;
     }
 
+    // Direct or recursive function call without explicit receiver
+    if (!callee_node) {
+        for (int c = 0; c < interp->class_count; c++) {
+            ApexMethod* m = find_method(interp, &interp->classes[c], method_name);
+            if (m && m->body) {
+                Environment* menv = env_new(interp->global_env);
+                for (int p = 0; p < m->param_count && p < node->as.call.args.count; p++) {
+                    Value av = interpreter_eval(interp, node->as.call.args.nodes[p], env);
+                    env_define(menv, m->params[p].param_name, av);
+                }
+                interpreter_eval(interp, m->body, menv);
+                env_free(menv);
+                if (interp->return_flag) {
+                    interp->return_flag = false;
+                    return interp->return_val;
+                }
+                return val_null();
+            }
+        }
+    }
+
     // Static class method call
     if (callee_node && callee_node->type == NODE_IDENTIFIER) {
         ApexClassDef* klass = find_class(interp, callee_node->as.identifier.name);
