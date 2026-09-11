@@ -161,6 +161,7 @@ ASTNode* parse_statement(Parser* parser) {
                     ASTNode* for_each = ast_new_node(NODE_FOR_EACH, line);
                     for_each->as.for_each.item_type = item_type;
                     for_each->as.for_each.item_name = item_name;
+                    for_each->as.for_each.item_hash = nadr_hash_str(item_name);
                     for_each->as.for_each.collection = col;
                     for_each->as.for_each.body = body;
                     return for_each;
@@ -190,6 +191,7 @@ ASTNode* parse_statement(Parser* parser) {
                 init = ast_new_node(NODE_VAR_DECL, line);
                 init->as.var_decl.type_name = t_name;
                 init->as.var_decl.var_name = v_name;
+                init->as.var_decl.hash = nadr_hash_str(v_name);
                 init->as.var_decl.init = v_init;
             } else {
                 init = parse_expression(parser);

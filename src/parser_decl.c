@@ -177,6 +177,7 @@ ASTNode* parse_class_declaration(Parser* parser) {
             ASTNode* field_node = ast_new_node(NODE_VAR_DECL, line);
             field_node->as.var_decl.type_name = type_name;
             field_node->as.var_decl.var_name = member_name;
+            field_node->as.var_decl.hash = nadr_hash_str(member_name);
             field_node->as.var_decl.init = NULL;
             ast_node_array_append(&class_node->as.class_decl.members, field_node);
         } else {
@@ -188,6 +189,7 @@ ASTNode* parse_class_declaration(Parser* parser) {
             ASTNode* field_node = ast_new_node(NODE_VAR_DECL, line);
             field_node->as.var_decl.type_name = type_name;
             field_node->as.var_decl.var_name = member_name;
+            field_node->as.var_decl.hash = nadr_hash_str(member_name);
             field_node->as.var_decl.init = init;
             ast_node_array_append(&class_node->as.class_decl.members, field_node);
         }
@@ -331,6 +333,7 @@ ASTNode* parse_declaration(Parser* parser) {
             ASTNode* var_decl = ast_new_node(NODE_VAR_DECL, parser->previous.line);
             var_decl->as.var_decl.type_name = type_name;
             var_decl->as.var_decl.var_name = var_name;
+            var_decl->as.var_decl.hash = nadr_hash_str(var_name);
             var_decl->as.var_decl.init = init;
             return var_decl;
         } else {

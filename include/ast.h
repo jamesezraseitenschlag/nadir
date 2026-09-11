@@ -61,6 +61,32 @@ typedef struct CatchClause {
     struct ASTNode* body;
 } CatchClause;
 
+typedef enum {
+    OP_ASSIGN,
+    OP_PLUS_ASSIGN,
+    OP_MINUS_ASSIGN,
+    OP_STAR_ASSIGN,
+    OP_SLASH_ASSIGN
+} AssignOpKind;
+
+typedef enum {
+    BINOP_ADD,
+    BINOP_SUB,
+    BINOP_MUL,
+    BINOP_DIV,
+    BINOP_MOD,
+    BINOP_EQ,
+    BINOP_NE,
+    BINOP_LT,
+    BINOP_LE,
+    BINOP_GT,
+    BINOP_GE,
+    BINOP_AND,
+    BINOP_OR,
+    BINOP_NULL_COALESCE,
+    BINOP_OTHER
+} BinaryOpKind;
+
 typedef struct ASTNode {
     ASTNodeType type;
     int line;
@@ -75,23 +101,27 @@ typedef struct ASTNode {
 
         struct {
             char* name;
+            uint32_t hash;
         } identifier;
 
         struct {
             char* type_name;
             char* var_name;
+            uint32_t hash;
             struct ASTNode* init;
         } var_decl;
 
         struct {
             struct ASTNode* target;
             char* op;
+            AssignOpKind op_kind;
             struct ASTNode* value;
         } assign;
 
         struct {
             struct ASTNode* left;
             char* op;
+            BinaryOpKind op_kind;
             struct ASTNode* right;
         } binary;
 
@@ -137,6 +167,7 @@ typedef struct ASTNode {
         struct {
             char* item_type;
             char* item_name;
+            uint32_t item_hash;
             struct ASTNode* collection;
             struct ASTNode* body;
         } for_each;

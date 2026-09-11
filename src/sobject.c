@@ -361,7 +361,7 @@ static DBTable* get_or_create_table(MockDB* db, const char* object_name) {
 }
 
 // 3-char standard sfdc prefixes
-static const char* get_sfdc_prefix(const char* obj_name) {
+const char* get_sfdc_prefix(const char* obj_name) {
     if (nadr_str_eq(obj_name, "Account"))      return "001";
     if (nadr_str_eq(obj_name, "Contact"))      return "003";
     if (nadr_str_eq(obj_name, "Opportunity"))  return "006";
@@ -460,14 +460,25 @@ static bool validate_sfdc_schema_rules(SObject* obj, char* err_buf, size_t err_s
 // call and completely dominated the per-row insert cost.
 // -----------------------------------------------------------------------------
 
+static time_t g_last_time_sec = 0;
+static char g_cached_date_buf[64] = {0};
+
 static void format_timestamp(time_t now, char* out, size_t out_sz) {
+    if (now == g_last_time_sec && g_cached_date_buf[0] != '\0') {
+        strncpy(out, g_cached_date_buf, out_sz - 1);
+        out[out_sz - 1] = '\0';
+        return;
+    }
     struct tm tm_info;
 #if defined(_WIN32)
     localtime_s(&tm_info, &now);
 #else
     localtime_r(&now, &tm_info);
 #endif
-    strftime(out, out_sz, "%Y-%m-%d %H:%M:%S", &tm_info);
+    strftime(g_cached_date_buf, sizeof(g_cached_date_buf), "%Y-%m-%d %H:%M:%S", &tm_info);
+    g_last_time_sec = now;
+    strncpy(out, g_cached_date_buf, out_sz - 1);
+    out[out_sz - 1] = '\0';
 }
 
 static const char* g_intern_id = "Id";
@@ -514,6 +525,8 @@ static Value mock_db_insert_with_time(SObject* obj, DBTable* table, const char* 
     return val_sobject(obj);
 }
 
+static int64_t g_global_record_id = 0;
+
 Value mock_db_insert(SObject* obj) {
     if (!obj) return val_null();
 
@@ -529,7 +542,8 @@ Value mock_db_insert(SObject* obj) {
     char date_buf[64];
     format_timestamp(time(NULL), date_buf, sizeof(date_buf));
 
-    return mock_db_insert_with_time(obj, table, date_buf, ++table->auto_id_seq);
+    table->auto_id_seq = (int)(++g_global_record_id);
+    return mock_db_insert_with_time(obj, table, date_buf, g_global_record_id);
 }
 
 void mock_db_insert_bulk(SObject** records, int count) {
@@ -552,7 +566,6 @@ void mock_db_insert_bulk(SObject** records, int count) {
     format_timestamp(time(NULL), date_buf, sizeof(date_buf));
 
     char err[256];
-    int64_t seq = table->auto_id_seq;
     for (int i = 0; i < count; i++) {
         SObject* obj = records[i];
         if (!obj) continue;
@@ -561,10 +574,10 @@ void mock_db_insert_bulk(SObject** records, int count) {
             fprintf(stderr, "%s\n", err);
             continue;
         }
-        seq++;
-        mock_db_insert_with_time(obj, table, date_buf, seq);
+        g_global_record_id++;
+        mock_db_insert_with_time(obj, table, date_buf, g_global_record_id);
     }
-    table->auto_id_seq = (int)seq;
+    table->auto_id_seq = (int)g_global_record_id;
 }
 
 // Locate a record by id. Ids have a fixed 18 char shape, so compare on the

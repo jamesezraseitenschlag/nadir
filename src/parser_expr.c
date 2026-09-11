@@ -15,12 +15,20 @@ ASTNode* parse_assignment(Parser* parser) {
     if (match_token(parser, TOKEN_ASSIGN) || match_token(parser, TOKEN_PLUS_ASSIGN) ||
         match_token(parser, TOKEN_MINUS_ASSIGN) || match_token(parser, TOKEN_STAR_ASSIGN) ||
         match_token(parser, TOKEN_SLASH_ASSIGN)) {
+        TokenType t = parser->previous.type;
+        AssignOpKind kind = OP_ASSIGN;
+        if (t == TOKEN_PLUS_ASSIGN) kind = OP_PLUS_ASSIGN;
+        else if (t == TOKEN_MINUS_ASSIGN) kind = OP_MINUS_ASSIGN;
+        else if (t == TOKEN_STAR_ASSIGN) kind = OP_STAR_ASSIGN;
+        else if (t == TOKEN_SLASH_ASSIGN) kind = OP_SLASH_ASSIGN;
+
         char* op = duplicate_slice(parser->previous.start, parser->previous.length);
         ASTNode* value = parse_assignment(parser);
 
         ASTNode* assign_node = ast_new_node(NODE_ASSIGN, parser->previous.line);
         assign_node->as.assign.target = expr;
         assign_node->as.assign.op = op;
+        assign_node->as.assign.op_kind = kind;
         assign_node->as.assign.value = value;
         return assign_node;
     }
@@ -52,6 +60,7 @@ ASTNode* parse_logical_or(Parser* parser) {
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = BINOP_OR;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -66,6 +75,7 @@ ASTNode* parse_null_coalescing(Parser* parser) {
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = BINOP_NULL_COALESCE;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -80,6 +90,7 @@ ASTNode* parse_logical_and(Parser* parser) {
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = BINOP_AND;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -90,11 +101,14 @@ ASTNode* parse_equality(Parser* parser) {
     ASTNode* expr = parse_relational(parser);
     while (match_token(parser, TOKEN_EQUAL) || match_token(parser, TOKEN_NOT_EQUAL) ||
            match_token(parser, TOKEN_EXACT_EQUAL) || match_token(parser, TOKEN_EXACT_NOT_EQUAL)) {
+        TokenType t = parser->previous.type;
+        BinaryOpKind kind = (t == TOKEN_NOT_EQUAL || t == TOKEN_EXACT_NOT_EQUAL) ? BINOP_NE : BINOP_EQ;
         char* op = duplicate_slice(parser->previous.start, parser->previous.length);
         ASTNode* right = parse_relational(parser);
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = kind;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -105,11 +119,18 @@ ASTNode* parse_relational(Parser* parser) {
     ASTNode* expr = parse_additive(parser);
     while (match_token(parser, TOKEN_LT) || match_token(parser, TOKEN_GT) ||
            match_token(parser, TOKEN_LE) || match_token(parser, TOKEN_GE)) {
+        TokenType t = parser->previous.type;
+        BinaryOpKind kind = BINOP_LT;
+        if (t == TOKEN_GT) kind = BINOP_GT;
+        else if (t == TOKEN_LE) kind = BINOP_LE;
+        else if (t == TOKEN_GE) kind = BINOP_GE;
+
         char* op = duplicate_slice(parser->previous.start, parser->previous.length);
         ASTNode* right = parse_additive(parser);
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = kind;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -119,11 +140,13 @@ ASTNode* parse_relational(Parser* parser) {
 ASTNode* parse_additive(Parser* parser) {
     ASTNode* expr = parse_multiplicative(parser);
     while (match_token(parser, TOKEN_PLUS) || match_token(parser, TOKEN_MINUS)) {
+        BinaryOpKind kind = (parser->previous.type == TOKEN_PLUS) ? BINOP_ADD : BINOP_SUB;
         char* op = duplicate_slice(parser->previous.start, parser->previous.length);
         ASTNode* right = parse_multiplicative(parser);
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = kind;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -133,11 +156,17 @@ ASTNode* parse_additive(Parser* parser) {
 ASTNode* parse_multiplicative(Parser* parser) {
     ASTNode* expr = parse_unary(parser);
     while (match_token(parser, TOKEN_STAR) || match_token(parser, TOKEN_SLASH) || match_token(parser, TOKEN_PERCENT)) {
+        TokenType t = parser->previous.type;
+        BinaryOpKind kind = BINOP_MUL;
+        if (t == TOKEN_SLASH) kind = BINOP_DIV;
+        else if (t == TOKEN_PERCENT) kind = BINOP_MOD;
+
         char* op = duplicate_slice(parser->previous.start, parser->previous.length);
         ASTNode* right = parse_unary(parser);
         ASTNode* bin = ast_new_node(NODE_BINARY_OP, parser->previous.line);
         bin->as.binary.left = expr;
         bin->as.binary.op = op;
+        bin->as.binary.op_kind = kind;
         bin->as.binary.right = right;
         expr = bin;
     }
@@ -355,6 +384,7 @@ ASTNode* parse_primary(Parser* parser) {
 
         ASTNode* id_node = ast_new_node(NODE_IDENTIFIER, line);
         id_node->as.identifier.name = name;
+        id_node->as.identifier.hash = nadr_hash_str(name);
         return id_node;
     }
 

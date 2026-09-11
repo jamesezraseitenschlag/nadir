@@ -191,6 +191,23 @@ static void val_to_json_rec(Value v, JsonBuffer* b) {
             jb_append_str(b, "}");
             break;
         }
+        case VAL_INSTANCE: {
+            jb_append_str(b, "{");
+            if (v.as.instance_val && v.as.instance_val->fields) {
+                Environment* env = v.as.instance_val->fields;
+                bool first = true;
+                for (int i = 0; i < env->count; i++) {
+                    if (!env->entries[i].name) continue;
+                    if (!first) jb_append_str(b, ", ");
+                    first = false;
+                    jb_append_escaped_str(b, env->entries[i].name);
+                    jb_append_str(b, ": ");
+                    val_to_json_rec(env->entries[i].value, b);
+                }
+            }
+            jb_append_str(b, "}");
+            break;
+        }
         default:
             jb_append_str(b, "null");
             break;
@@ -211,7 +228,7 @@ char* val_to_json_string(Value v) {
 static const char* CORS_HEADERS =
     "Content-Type: application/json\r\n"
     "Access-Control-Allow-Origin: *\r\n"
-    "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+    "Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\n"
     "Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-SFDC-Session-Id\r\n"
     "Access-Control-Max-Age: 86400\r\n";
 
@@ -272,11 +289,56 @@ static void handle_aura_gateway(struct mg_connection* c, struct mg_http_message*
         return;
     }
 
-    // Build Apex call string: ClassName.methodName()
-    char invocation[512];
-    snprintf(invocation, sizeof(invocation), "%s.%s();", class_name, method_name);
+    // Find class and method to format exact parameter list
+    ApexClassDef* klass = find_class(g_daemon_interp, class_name);
+    ApexMethod* method = klass ? find_method(g_daemon_interp, klass, method_name) : NULL;
 
-    Value res = execute_apex_source(invocation);
+    JsonBuffer inv_jb;
+    jb_init(&inv_jb, 512);
+    jb_append_str(&inv_jb, class_name);
+    jb_append_str(&inv_jb, ".");
+    jb_append_str(&inv_jb, method_name);
+    jb_append_str(&inv_jb, "(");
+
+    if (method && method->param_count > 0) {
+        for (int p = 0; p < method->param_count; p++) {
+            if (p > 0) jb_append_str(&inv_jb, ", ");
+            const char* pname = method->params[p].param_name;
+            char json_path[128];
+            snprintf(json_path, sizeof(json_path), "$.params.%s", pname);
+            char* val_str = mg_json_get_str(hm->body, json_path);
+            if (!val_str) {
+                snprintf(json_path, sizeof(json_path), "$.actions[0].params.params.%s", pname);
+                val_str = mg_json_get_str(hm->body, json_path);
+            }
+            if (!val_str) {
+                double num = 0;
+                snprintf(json_path, sizeof(json_path), "$.params.%s", pname);
+                bool is_num = mg_json_get_num(hm->body, json_path, &num);
+                if (!is_num) {
+                    snprintf(json_path, sizeof(json_path), "$.actions[0].params.params.%s", pname);
+                    is_num = mg_json_get_num(hm->body, json_path, &num);
+                }
+                if (is_num) {
+                    char nbuf[32];
+                    snprintf(nbuf, sizeof(nbuf), "%lld", (long long)num);
+                    jb_append_str(&inv_jb, nbuf);
+                } else {
+                    jb_append_str(&inv_jb, "null");
+                }
+            } else {
+                jb_append_str(&inv_jb, "'");
+                jb_append_str(&inv_jb, val_str);
+                jb_append_str(&inv_jb, "'");
+                free(val_str);
+            }
+        }
+    }
+    jb_append_str(&inv_jb, ");");
+
+    Value res = execute_apex_source(inv_jb.data);
+    free(inv_jb.data);
+
     char* res_json = val_to_json_string(res);
 
     JsonBuffer resp_jb;
@@ -292,24 +354,40 @@ static void handle_aura_gateway(struct mg_connection* c, struct mg_http_message*
 }
 
 // -----------------------------------------------------------------------------
-// Lightning Data Service (UI-API Record Mock) Handler
+// Lightning Data Service (UI-API Record Mock) Handlers
 // -----------------------------------------------------------------------------
 
-static void handle_ui_api_record(struct mg_connection* c, struct mg_http_message* hm, const char* record_id) {
+static SObject* find_record_by_id(const char* record_id, const char** out_table_name) {
+    if (!record_id) return NULL;
+    MockDB* db = mock_db_get_instance();
+    if (!db) return NULL;
+    for (int t = 0; t < db->table_count; t++) {
+        DBTable* tbl = &db->tables[t];
+        for (int r = 0; r < tbl->record_count; r++) {
+            SObject* rec = tbl->records[r];
+            if (!rec || rec->is_deleted) continue;
+            Value id_val = sobject_get(rec, "Id");
+            if (id_val.type == VAL_STRING && id_val.as.string_val && strcmp(id_val.as.string_val, record_id) == 0) {
+                if (out_table_name) *out_table_name = tbl->object_name;
+                return rec;
+            }
+        }
+    }
+    return NULL;
+}
+
+static void handle_ui_api_record_get(struct mg_connection* c, struct mg_http_message* hm, const char* record_id) {
+    (void)hm;
     if (!record_id || strlen(record_id) < 3) {
         send_json_response(c, 400, "Bad Request", "{\"message\": \"Invalid recordId\"}");
         return;
     }
 
-    const char* obj_type = sobject_type_from_id(record_id);
+    const char* obj_type = NULL;
+    SObject* rec = find_record_by_id(record_id, &obj_type);
 
-    // Query in-memory table for record by Id
-    const char* fields[] = {"Id", "Name", "BillingCity", "AnnualRevenue", "Industry", "Status", "Email", "Phone"};
-    int field_count = (int)(sizeof(fields) / sizeof(fields[0]));
-
-    Value qres = mock_db_query(obj_type, fields, field_count, "Id", "=", val_string(record_id), 1);
-
-    if (qres.type != VAL_LIST || !qres.as.list_val || qres.as.list_val->count == 0) {
+    if (!rec) {
+        obj_type = sobject_type_from_id(record_id);
         // Return simulated UI-API record if not yet inserted
         JsonBuffer jb;
         jb_init(&jb, 512);
@@ -331,7 +409,9 @@ static void handle_ui_api_record(struct mg_connection* c, struct mg_http_message
         return;
     }
 
-    SObject* rec = qres.as.list_val->items[0].as.sobject_val;
+    if (!obj_type && rec->type_name) obj_type = rec->type_name;
+    if (!obj_type) obj_type = "SObject";
+
     JsonBuffer jb;
     jb_init(&jb, 1024);
     jb_append_str(&jb, "{\n");
@@ -359,6 +439,61 @@ static void handle_ui_api_record(struct mg_connection* c, struct mg_http_message
 
     send_json_response(c, 200, "OK", jb.data);
     free(jb.data);
+}
+
+static void handle_ui_api_object_info(struct mg_connection* c, struct mg_http_message* hm, const char* object_name) {
+    (void)hm;
+    if (!object_name || object_name[0] == '\0') object_name = "Account";
+    const char* pfx = get_sfdc_prefix(object_name);
+
+    JsonBuffer jb;
+    jb_init(&jb, 1024);
+    jb_append_str(&jb, "{\n");
+    jb_append_str(&jb, "  \"apiName\": \""); jb_append_str(&jb, object_name); jb_append_str(&jb, "\",\n");
+    jb_append_str(&jb, "  \"label\": \""); jb_append_str(&jb, object_name); jb_append_str(&jb, "\",\n");
+    jb_append_str(&jb, "  \"keyPrefix\": \""); jb_append_str(&jb, pfx ? pfx : "001"); jb_append_str(&jb, "\",\n");
+    jb_append_str(&jb, "  \"custom\": false,\n");
+    jb_append_str(&jb, "  \"queryable\": true,\n");
+    jb_append_str(&jb, "  \"createable\": true,\n");
+    jb_append_str(&jb, "  \"updateable\": true,\n");
+    jb_append_str(&jb, "  \"deletable\": true,\n");
+    jb_append_str(&jb, "  \"fields\": {\n");
+    jb_append_str(&jb, "    \"Id\": { \"apiName\": \"Id\", \"label\": \"Record ID\", \"dataType\": \"Id\" },\n");
+    jb_append_str(&jb, "    \"Name\": { \"apiName\": \"Name\", \"label\": \"Name\", \"dataType\": \"String\" },\n");
+    jb_append_str(&jb, "    \"CreatedDate\": { \"apiName\": \"CreatedDate\", \"label\": \"Created Date\", \"dataType\": \"DateTime\" }\n");
+    jb_append_str(&jb, "  }\n");
+    jb_append_str(&jb, "}");
+
+    send_json_response(c, 200, "OK", jb.data);
+    free(jb.data);
+}
+
+static void handle_ui_api_create_record(struct mg_connection* c, struct mg_http_message* hm) {
+    char* api_name = mg_json_get_str(hm->body, "$.apiName");
+    if (!api_name) api_name = mg_json_get_str(hm->body, "$.recordTypeId");
+    if (!api_name) api_name = strdup("Account");
+
+    char* name_val = mg_json_get_str(hm->body, "$.fields.Name");
+    if (!name_val) name_val = strdup("New Record");
+
+    char apex[512];
+    snprintf(apex, sizeof(apex), "%s r = new %s(Name = '%s'); insert r; return r;",
+             api_name, api_name, name_val);
+
+    Value res = execute_apex_source(apex);
+    if (res.type == VAL_SOBJECT && res.as.sobject_val) {
+        Value id_val = sobject_get(res.as.sobject_val, "Id");
+        if (id_val.type == VAL_STRING && id_val.as.string_val) {
+            handle_ui_api_record_get(c, hm, id_val.as.string_val);
+            if (api_name) free(api_name);
+            if (name_val) free(name_val);
+            return;
+        }
+    }
+
+    send_json_response(c, 201, "Created", "{\"id\": \"001000000000001AAA\", \"success\": true}");
+    if (api_name) free(api_name);
+    if (name_val) free(name_val);
 }
 
 // -----------------------------------------------------------------------------
@@ -399,10 +534,71 @@ static void handle_soql_query(struct mg_connection* c, struct mg_http_message* h
     free(jb.data);
 }
 
+static void handle_sobject_global_describe(struct mg_connection* c) {
+    const char* global_json =
+        "{\n"
+        "  \"encoding\": \"UTF-8\",\n"
+        "  \"maxBatchSize\": 200,\n"
+        "  \"sobjects\": [\n"
+        "    { \"name\": \"Account\", \"label\": \"Account\", \"keyPrefix\": \"001\", \"custom\": false, \"createable\": true, \"queryable\": true, \"deletable\": true },\n"
+        "    { \"name\": \"Contact\", \"label\": \"Contact\", \"keyPrefix\": \"003\", \"custom\": false, \"createable\": true, \"queryable\": true, \"deletable\": true },\n"
+        "    { \"name\": \"Opportunity\", \"label\": \"Opportunity\", \"keyPrefix\": \"006\", \"custom\": false, \"createable\": true, \"queryable\": true, \"deletable\": true },\n"
+        "    { \"name\": \"Lead\", \"label\": \"Lead\", \"keyPrefix\": \"00Q\", \"custom\": false, \"createable\": true, \"queryable\": true, \"deletable\": true },\n"
+        "    { \"name\": \"Case\", \"label\": \"Case\", \"keyPrefix\": \"500\", \"custom\": false, \"createable\": true, \"queryable\": true, \"deletable\": true }\n"
+        "  ]\n"
+        "}";
+    send_json_response(c, 200, "OK", global_json);
+}
+
+static void handle_sobject_rest_get(struct mg_connection* c, const char* object_name, const char* record_id) {
+    (void)object_name;
+    const char* tbl_name = NULL;
+    SObject* rec = find_record_by_id(record_id, &tbl_name);
+    if (!rec) {
+        send_json_response(c, 404, "Not Found", "[{\"message\": \"Provided external ID field does not exist or not found\", \"errorCode\": \"NOT_FOUND\"}]");
+        return;
+    }
+    char* json_str = val_to_json_string(val_sobject(rec));
+    send_json_response(c, 200, "OK", json_str);
+    free(json_str);
+}
+
+static void handle_sobject_rest_create(struct mg_connection* c, struct mg_http_message* hm, const char* object_name) {
+    char* name_val = mg_json_get_str(hm->body, "$.Name");
+    char* last_name = mg_json_get_str(hm->body, "$.LastName");
+    if (!last_name && name_val) last_name = strdup(name_val);
+    if (!name_val && !last_name) name_val = strdup("New Record");
+
+    char apex[512];
+    if (strcmp(object_name, "Contact") == 0 || strcmp(object_name, "Lead") == 0) {
+        snprintf(apex, sizeof(apex), "%s r = new %s(LastName = '%s'); insert r; return r.Id;",
+                 object_name, object_name, last_name ? last_name : "Test");
+    } else {
+        snprintf(apex, sizeof(apex), "%s r = new %s(Name = '%s'); insert r; return r.Id;",
+                 object_name, object_name, name_val ? name_val : "Test");
+    }
+    Value res = execute_apex_source(apex);
+    const char* new_id = (res.type == VAL_STRING && res.as.string_val) ? res.as.string_val : "001000000000001AAA";
+
+    char resp[256];
+    snprintf(resp, sizeof(resp), "{\"id\": \"%s\", \"success\": true, \"errors\": []}", new_id);
+    send_json_response(c, 201, "Created", resp);
+    if (name_val) free(name_val);
+    if (last_name) free(last_name);
+}
+
 static void handle_apex_execute(struct mg_connection* c, struct mg_http_message* hm) {
     char* code = mg_json_get_str(hm->body, "$.code");
-    const char* src = code ? code : hm->body.buf;
-    size_t src_len = code ? strlen(code) : hm->body.len;
+    if (!code) code = mg_json_get_str(hm->body, "$.anonymousBody");
+    char q_code[2048] = {0};
+    if (!code && hm->query.len > 0) {
+        mg_http_get_var(&hm->query, "anonymousBody", q_code, sizeof(q_code));
+        if (q_code[0] == '\0') {
+            mg_http_get_var(&hm->query, "code", q_code, sizeof(q_code));
+        }
+    }
+    const char* src = code ? code : (q_code[0] ? q_code : hm->body.buf);
+    size_t src_len = code ? strlen(code) : (q_code[0] ? strlen(q_code) : hm->body.len);
 
     char* null_term_src = (char*)malloc(src_len + 1);
     if (!null_term_src) abort();
@@ -413,10 +609,18 @@ static void handle_apex_execute(struct mg_connection* c, struct mg_http_message*
     char* res_json = val_to_json_string(res);
 
     JsonBuffer jb;
-    jb_init(&jb, strlen(res_json) + 128);
-    jb_append_str(&jb, "{\"success\": true, \"compiled\": true, \"result\": ");
+    jb_init(&jb, strlen(res_json) + 256);
+    jb_append_str(&jb, "{\n"
+                       "  \"compiled\": true,\n"
+                       "  \"compileProblem\": null,\n"
+                       "  \"success\": true,\n"
+                       "  \"line\": -1,\n"
+                       "  \"column\": -1,\n"
+                       "  \"exceptionMessage\": null,\n"
+                       "  \"exceptionStackTrace\": null,\n"
+                       "  \"result\": ");
     jb_append_str(&jb, res_json);
-    jb_append_str(&jb, "}");
+    jb_append_str(&jb, "\n}");
 
     send_json_response(c, 200, "OK", jb.data);
 
@@ -424,6 +628,47 @@ static void handle_apex_execute(struct mg_connection* c, struct mg_http_message*
     free(null_term_src);
     free(res_json);
     free(jb.data);
+}
+
+// -----------------------------------------------------------------------------
+// Standard Salesforce REST Endpoints (Limits, UserInfo, Versions)
+// -----------------------------------------------------------------------------
+
+static void handle_limits(struct mg_connection* c) {
+    const char* limits_json =
+        "{\n"
+        "  \"DailyApiRequests\": { \"Max\": 100000, \"Remaining\": 99990 },\n"
+        "  \"DataStorageMB\": { \"Max\": 5120, \"Remaining\": 5110 },\n"
+        "  \"FileStorageMB\": { \"Max\": 20480, \"Remaining\": 20480 },\n"
+        "  \"DailyAsyncApexExecutions\": { \"Max\": 250000, \"Remaining\": 250000 },\n"
+        "  \"SingleEmail\": { \"Max\": 5000, \"Remaining\": 5000 }\n"
+        "}";
+    send_json_response(c, 200, "OK", limits_json);
+}
+
+static void handle_versions(struct mg_connection* c) {
+    const char* versions_json =
+        "[\n"
+        "  { \"label\": \"Winter '24\", \"url\": \"/services/data/v58.0\", \"version\": \"58.0\" },\n"
+        "  { \"label\": \"Spring '24\", \"url\": \"/services/data/v59.0\", \"version\": \"59.0\" },\n"
+        "  { \"label\": \"Summer '24\", \"url\": \"/services/data/v60.0\", \"version\": \"60.0\" }\n"
+        "]";
+    send_json_response(c, 200, "OK", versions_json);
+}
+
+static void handle_userinfo(struct mg_connection* c) {
+    const char* user_json =
+        "{\n"
+        "  \"user_id\": \"005000000000001AAA\",\n"
+        "  \"organization_id\": \"00D000000000001AAA\",\n"
+        "  \"preferred_username\": \"admin@local.test\",\n"
+        "  \"nickname\": \"admin\",\n"
+        "  \"name\": \"Nadir Local Administrator\",\n"
+        "  \"email\": \"admin@local.test\",\n"
+        "  \"zoneinfo\": \"America/Los_Angeles\",\n"
+        "  \"locale\": \"en_US\"\n"
+        "}";
+    send_json_response(c, 200, "OK", user_json);
 }
 
 // -----------------------------------------------------------------------------
@@ -457,8 +702,37 @@ static void daemon_http_event_handler(struct mg_connection* c, int ev, void* ev_
         return;
     }
 
-    // Route: Lightning Data Service (UI-API Record)
-    // Match /services/data/v*/ui-api/records/*
+    // Route: Lightning Data Service - Object Info
+    // Match /services/data/v*/ui-api/object-info/*
+    if (mg_match(hm->uri, mg_str("/services/data/*/ui-api/object-info/*"), NULL)) {
+        const char* pfx = "/object-info/";
+        const char* pos = NULL;
+        for (size_t i = 0; i + strlen(pfx) <= hm->uri.len; i++) {
+            if (strncmp(hm->uri.buf + i, pfx, strlen(pfx)) == 0) {
+                pos = hm->uri.buf + i + strlen(pfx);
+                break;
+            }
+        }
+        if (pos) {
+            char obj_name[64] = {0};
+            size_t idx = 0;
+            const char* uri_end = hm->uri.buf + hm->uri.len;
+            while (pos < uri_end && *pos != '/' && *pos != '?' && idx < sizeof(obj_name) - 1) {
+                obj_name[idx++] = *pos++;
+            }
+            obj_name[idx] = '\0';
+            handle_ui_api_object_info(c, hm, obj_name);
+            return;
+        }
+    }
+
+    // Route: Lightning Data Service - Create Record (POST /services/data/v*/ui-api/records)
+    if (mg_match(hm->uri, mg_str("/services/data/*/ui-api/records"), NULL) && mg_strcmp(hm->method, mg_str("POST")) == 0) {
+        handle_ui_api_create_record(c, hm);
+        return;
+    }
+
+    // Route: Lightning Data Service - Single Record (GET /services/data/v*/ui-api/records/*)
     if (mg_match(hm->uri, mg_str("/services/data/*/ui-api/records/*"), NULL)) {
         const char* prefix = "/records/";
         const char* pos = NULL;
@@ -476,14 +750,100 @@ static void daemon_http_event_handler(struct mg_connection* c, int ev, void* ev_
                 rec_id[idx++] = *pos++;
             }
             rec_id[idx] = '\0';
-            handle_ui_api_record(c, hm, rec_id);
+
+            if (mg_strcmp(hm->method, mg_str("DELETE")) == 0) {
+                send_json_response(c, 204, "No Content", "");
+                return;
+            }
+
+            handle_ui_api_record_get(c, hm, rec_id);
             return;
+        }
+    }
+
+    // Route: Standard SObjects Describe Global (/services/data/v*/sobjects or /services/data/v*/sobjects/)
+    if (mg_match(hm->uri, mg_str("/services/data/*/sobjects"), NULL) || mg_match(hm->uri, mg_str("/services/data/*/sobjects/"), NULL)) {
+        handle_sobject_global_describe(c);
+        return;
+    }
+
+    // Route: Standard SObjects REST API (/services/data/v*/sobjects/* or /services/data/v*/sobjects/*/*)
+    if (mg_match(hm->uri, mg_str("/services/data/*/sobjects/#"), NULL)) {
+        const char* prefix = "/sobjects/";
+        const char* pos = NULL;
+        for (size_t i = 0; i + strlen(prefix) <= hm->uri.len; i++) {
+            if (strncmp(hm->uri.buf + i, prefix, strlen(prefix)) == 0) {
+                pos = hm->uri.buf + i + strlen(prefix);
+                break;
+            }
+        }
+        if (pos) {
+            char segment1[64] = {0};
+            char segment2[64] = {0};
+            size_t idx = 0;
+            const char* uri_end = hm->uri.buf + hm->uri.len;
+            while (pos < uri_end && *pos != '/' && *pos != '?' && idx < sizeof(segment1) - 1) {
+                segment1[idx++] = *pos++;
+            }
+            segment1[idx] = '\0';
+
+            if (pos < uri_end && *pos == '/') {
+                pos++;
+                idx = 0;
+                while (pos < uri_end && *pos != '/' && *pos != '?' && idx < sizeof(segment2) - 1) {
+                    segment2[idx++] = *pos++;
+                }
+                segment2[idx] = '\0';
+            }
+
+            if (strcmp(segment2, "describe") == 0) {
+                handle_ui_api_object_info(c, hm, segment1);
+                return;
+            }
+
+            if (segment2[0] != '\0') {
+                // SObject single record operations
+                if (mg_strcmp(hm->method, mg_str("GET")) == 0) {
+                    handle_sobject_rest_get(c, segment1, segment2);
+                    return;
+                } else if (mg_strcmp(hm->method, mg_str("DELETE")) == 0) {
+                    send_json_response(c, 204, "No Content", "");
+                    return;
+                } else if (mg_strcmp(hm->method, mg_str("PATCH")) == 0) {
+                    send_json_response(c, 204, "No Content", "");
+                    return;
+                }
+            } else {
+                // SObject collection operations
+                if (mg_strcmp(hm->method, mg_str("POST")) == 0) {
+                    handle_sobject_rest_create(c, hm, segment1);
+                    return;
+                }
+            }
         }
     }
 
     // Route: SOQL Query REST API
     if (mg_match(hm->uri, mg_str("/services/data/*/query"), NULL) || mg_match(hm->uri, mg_str("/query"), NULL)) {
         handle_soql_query(c, hm);
+        return;
+    }
+
+    // Route: Salesforce Limits API
+    if (mg_match(hm->uri, mg_str("/services/data/*/limits"), NULL)) {
+        handle_limits(c);
+        return;
+    }
+
+    // Route: Salesforce API Versions
+    if (mg_match(hm->uri, mg_str("/services/data"), NULL) || mg_match(hm->uri, mg_str("/services/data/"), NULL)) {
+        handle_versions(c);
+        return;
+    }
+
+    // Route: UserInfo Endpoint
+    if (mg_match(hm->uri, mg_str("/services/oauth2/userinfo"), NULL)) {
+        handle_userinfo(c);
         return;
     }
 
@@ -538,7 +898,11 @@ int nadir_daemon_start(int port, const char* project_dir, Interpreter* interp) {
     printf("  Endpoints:\n");
     printf("    POST /aura                     (@AuraEnabled Gateway)\n");
     printf("    GET  /services/data/v58.0/ui-api/records/{id}  (UI-API Record)\n");
+    printf("    GET  /services/data/v58.0/ui-api/object-info/{obj} (UI-API Object Info)\n");
+    printf("    POST /services/data/v58.0/ui-api/records (UI-API Create Record)\n");
     printf("    GET  /services/data/v58.0/query (SOQL REST API)\n");
+    printf("    GET  /services/data/v58.0/limits (Limits API)\n");
+    printf("    GET  /services/oauth2/userinfo (UserInfo API)\n");
     printf("    POST /aura/execute             (Anonymous Apex)\n");
     printf("====================================================================\n");
 

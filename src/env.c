@@ -23,11 +23,10 @@ void env_free(Environment* e) {
     free(e);
 }
 
-void env_define(Environment* e, const char* name, Value val) {
+void env_define_prehashed(Environment* e, const char* name, uint32_t hash, Value val) {
     if (!e || !name) return;
-    uint32_t h = nadr_hash_str(name);
     for (int i = 0; i < e->count; i++) {
-        if (e->entries[i].hash == h && nadr_str_eq(e->entries[i].name, name)) {
+        if (e->entries[i].hash == hash && nadr_str_eq(e->entries[i].name, name)) {
             e->entries[i].value = val;
             return;
         }
@@ -38,17 +37,21 @@ void env_define(Environment* e, const char* name, Value val) {
         if (!e->entries) abort();
     }
     e->entries[e->count].name = duplicate_string(name);
-    e->entries[e->count].hash = h;
+    e->entries[e->count].hash = hash;
     e->entries[e->count].value = val;
     e->count++;
 }
 
-bool env_assign(Environment* e, const char* var, Value val) {
+void env_define(Environment* e, const char* name, Value val) {
+    if (!name) return;
+    env_define_prehashed(e, name, nadr_hash_str(name), val);
+}
+
+bool env_assign_prehashed(Environment* e, const char* var, uint32_t hash, Value val) {
     if (!e || !var) return false;
-    uint32_t h = nadr_hash_str(var);
     for (Environment* cur = e; cur; cur = cur->parent) {
         for (int i = 0; i < cur->count; i++) {
-            if (cur->entries[i].hash == h && nadr_str_eq(cur->entries[i].name, var)) {
+            if (cur->entries[i].hash == hash && nadr_str_eq(cur->entries[i].name, var)) {
                 cur->entries[i].value = val;
                 return true;
             }
@@ -57,18 +60,27 @@ bool env_assign(Environment* e, const char* var, Value val) {
     return false;
 }
 
-bool env_get(Environment* e, const char* name, Value* out) {
+bool env_assign(Environment* e, const char* var, Value val) {
+    if (!var) return false;
+    return env_assign_prehashed(e, var, nadr_hash_str(var), val);
+}
+
+bool env_get_prehashed(Environment* e, const char* name, uint32_t hash, Value* out) {
     if (!e || !name) return false;
-    uint32_t h = nadr_hash_str(name);
     for (Environment* cur = e; cur; cur = cur->parent) {
         for (int i = 0; i < cur->count; i++) {
-            if (cur->entries[i].hash == h && nadr_str_eq(cur->entries[i].name, name)) {
+            if (cur->entries[i].hash == hash && nadr_str_eq(cur->entries[i].name, name)) {
                 if (out) *out = cur->entries[i].value;
                 return true;
             }
         }
     }
     return false;
+}
+
+bool env_get(Environment* e, const char* name, Value* out) {
+    if (!name) return false;
+    return env_get_prehashed(e, name, nadr_hash_str(name), out);
 }
 
 bool env_has(Environment* e, const char* name) {

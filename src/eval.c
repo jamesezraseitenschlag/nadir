@@ -182,8 +182,10 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
 
         case NODE_IDENTIFIER: {
             const char* name = node->as.identifier.name;
+            uint32_t hash = node->as.identifier.hash;
+            if (hash == 0 && name) hash = nadr_hash_str(name);
             Value v;
-            if (env_get(env, name, &v)) {
+            if (env_get_prehashed(env, name, hash, &v)) {
                 return v;
             }
             if (string_equal_case(name, "system") || string_equal_case(name, "math") || string_equal_case(name, "string") ||
@@ -202,7 +204,9 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
             if (node->as.var_decl.init) {
                 init_val = interpreter_eval(interp, node->as.var_decl.init, env);
             }
-            env_define(env, node->as.var_decl.var_name, init_val);
+            uint32_t hash = node->as.var_decl.hash;
+            if (hash == 0 && node->as.var_decl.var_name) hash = nadr_hash_str(node->as.var_decl.var_name);
+            env_define_prehashed(env, node->as.var_decl.var_name, hash, init_val);
             return init_val;
         }
 
@@ -290,8 +294,11 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
             Value last = val_null();
             ValueArray* arr = coll.as.list_val;
             Environment* loop_env = env_new(env);
+            const char* item_name = node->as.for_each.item_name;
+            uint32_t item_hash = node->as.for_each.item_hash;
+            if (item_hash == 0 && item_name) item_hash = nadr_hash_str(item_name);
             for (int i = 0; i < arr->count; i++) {
-                env_define(loop_env, node->as.for_each.item_name, arr->items[i]);
+                env_define_prehashed(loop_env, item_name, item_hash, arr->items[i]);
                 last = interpreter_eval(interp, node->as.for_each.body, loop_env);
                 if (interp->return_flag) break;
             }

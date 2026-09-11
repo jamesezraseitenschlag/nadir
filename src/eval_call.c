@@ -10,59 +10,75 @@ Value eval_method_or_call(Interpreter* interp, ASTNode* node, Environment* env) 
     const char* method_name = node->as.call.method_name;
     ASTNode* callee_node = node->as.call.callee;
 
-    // Check system / standard library namespace builtins first
-    bool handled = false;
-    Value sys_res = eval_system_builtins(interp, node, env, &handled);
-    if (handled) {
-        return sys_res;
-    }
-
-    // Direct or recursive function call without explicit receiver
-    if (!callee_node) {
-        for (int c = 0; c < interp->class_count; c++) {
-            ApexMethod* m = find_method(interp, &interp->classes[c], method_name);
-            if (m && m->body) {
-                Environment* menv = env_new(interp->global_env);
-                for (int p = 0; p < m->param_count && p < node->as.call.args.count; p++) {
-                    Value av = interpreter_eval(interp, node->as.call.args.nodes[p], env);
-                    env_define(menv, m->params[p].param_name, av);
-                }
-                interpreter_eval(interp, m->body, menv);
-                env_free(menv);
-                if (interp->return_flag) {
-                    interp->return_flag = false;
-                    return interp->return_val;
-                }
-                return val_null();
-            }
+    // Fast path: if callee is a local variable in env, resolve it directly!
+    Value target = val_null();
+    bool is_local_var = false;
+    if (callee_node && callee_node->type == NODE_IDENTIFIER) {
+        const char* vname = callee_node->as.identifier.name;
+        uint32_t vhash = callee_node->as.identifier.hash;
+        if (vhash == 0 && vname) vhash = nadr_hash_str(vname);
+        if (env_get_prehashed(env, vname, vhash, &target)) {
+            is_local_var = true;
         }
     }
 
-    // Static class method call (only if not a local/enclosing variable)
-    if (callee_node && callee_node->type == NODE_IDENTIFIER && !env_has(env, callee_node->as.identifier.name)) {
-        ApexClassDef* klass = find_class(interp, callee_node->as.identifier.name);
-        if (klass) {
-            ApexMethod* m = find_method(interp, klass, method_name);
-            if (m && m->body) {
-                Environment* menv = env_new(interp->global_env);
-                for (int p = 0; p < m->param_count && p < node->as.call.args.count; p++) {
-                    Value av = interpreter_eval(interp, node->as.call.args.nodes[p], env);
-                    env_define(menv, m->params[p].param_name, av);
+    if (!is_local_var) {
+        // Check system / standard library namespace builtins first
+        bool handled = false;
+        Value sys_res = eval_system_builtins(interp, node, env, &handled);
+        if (handled) {
+            return sys_res;
+        }
+
+        // Direct or recursive function call without explicit receiver
+        if (!callee_node) {
+            for (int c = 0; c < interp->class_count; c++) {
+                ApexMethod* m = find_method(interp, &interp->classes[c], method_name);
+                if (m && m->body) {
+                    Environment* menv = env_new(interp->global_env);
+                    for (int p = 0; p < m->param_count && p < node->as.call.args.count; p++) {
+                        Value av = interpreter_eval(interp, node->as.call.args.nodes[p], env);
+                        env_define(menv, m->params[p].param_name, av);
+                    }
+                    interpreter_eval(interp, m->body, menv);
+                    env_free(menv);
+                    if (interp->return_flag) {
+                        interp->return_flag = false;
+                        return interp->return_val;
+                    }
+                    return val_null();
                 }
-                interpreter_eval(interp, m->body, menv);
-                env_free(menv);
-                if (interp->return_flag) {
-                    interp->return_flag = false;
-                    return interp->return_val;
+            }
+        }
+
+        // Static class method call (only if not a local/enclosing variable)
+        if (callee_node && callee_node->type == NODE_IDENTIFIER) {
+            ApexClassDef* klass = find_class(interp, callee_node->as.identifier.name);
+            if (klass) {
+                ApexMethod* m = find_method(interp, klass, method_name);
+                if (m && m->body) {
+                    Environment* menv = env_new(interp->global_env);
+                    for (int p = 0; p < m->param_count && p < node->as.call.args.count; p++) {
+                        Value av = interpreter_eval(interp, node->as.call.args.nodes[p], env);
+                        env_define(menv, m->params[p].param_name, av);
+                    }
+                    interpreter_eval(interp, m->body, menv);
+                    env_free(menv);
+                    if (interp->return_flag) {
+                        interp->return_flag = false;
+                        return interp->return_val;
+                    }
+                    return val_null();
                 }
-                return val_null();
             }
         }
     }
 
     // Instance or collection method calls
     if (callee_node) {
-        Value target = interpreter_eval(interp, callee_node, env);
+        if (!is_local_var) {
+            target = interpreter_eval(interp, callee_node, env);
+        }
         if (target.type == VAL_NULL && node->as.call.safe_nav) return val_null();
 
         // String methods

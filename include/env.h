@@ -29,4 +29,8 @@ bool env_assign(Environment* env, const char* name, Value value);
 bool env_get(Environment* env, const char* name, Value* out_value);
 bool env_has(Environment* env, const char* name);
 
+void env_define_prehashed(Environment* env, const char* name, uint32_t hash, Value value);
+bool env_assign_prehashed(Environment* env, const char* name, uint32_t hash, Value value);
+bool env_get_prehashed(Environment* env, const char* name, uint32_t hash, Value* out_value);
+
 #endif // ENV_H

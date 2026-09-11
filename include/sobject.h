@@ -45,6 +45,7 @@ void sobject_put(SObject* obj, const char* field_name, struct Value val);
 struct Value sobject_get(SObject* obj, const char* field_name);
 SObject* sobject_clone(SObject* src);
 void sobject_free(SObject* obj);
+const char* get_sfdc_prefix(const char* object_name);
 
 // Bulk helpers. All of these exist purely to keep per-row work out of the
 // row loop; they are semantically identical to the scalar versions.
