@@ -1,0 +1,34 @@
+{
+  "namespaces": {
+    "System": {
+      "methods": [
+        {"name": "debug", "returns": "void", "params": [{"name": "msg", "type": "Object"}]},
+        {"name": "now", "returns": "Datetime", "params": []},
+        {"name": "today", "returns": "Date", "params": []},
+        {"name": "currentTimeMillis", "returns": "Long", "params": []},
+        {"name": "assertEquals", "returns": "void", "params": [{"name": "expected", "type": "Object"}, {"name": "actual", "type": "Object"}]},
+        {"name": "assertNotEquals", "returns": "void", "params": [{"name": "expected", "type": "Object"}, {"name": "actual", "type": "Object"}]},
+        {"name": "assert", "returns": "void", "params": [{"name": "condition", "type": "Boolean"}, {"name": "msg", "type": "String", "optional": true}]}
+      ]
+    },
+    "Math": {
+      "methods": [
+        {"name": "abs", "returns": "Double", "params": [{"name": "d", "type": "Double"}]},
+        {"name": "max", "returns": "Double", "params": [{"name": "a", "type": "Double"}, {"name": "b", "type": "Double"}]},
+        {"name": "min", "returns": "Double", "params": [{"name": "a", "type": "Double"}, {"name": "b", "type": "Double"}]},
+        {"name": "random", "returns": "Double", "params": []},
+        {"name": "round", "returns": "Long", "params": [{"name": "d", "type": "Double"}]},
+        {"name": "sqrt", "returns": "Double", "params": [{"name": "d", "type": "Double"}]}
+      ]
+    },
+    "String": {
+      "methods": [
+        {"name": "isBlank", "returns": "Boolean", "params": [{"name": "s", "type": "String"}]},
+        {"name": "isNotBlank", "returns": "Boolean", "params": [{"name": "s", "type": "String"}]},
+        {"name": "isEmpty", "returns": "Boolean", "params": [{"name": "s", "type": "String"}]},
+        {"name": "join", "returns": "String", "params": [{"name": "list", "type": "List<String>"}, {"name": "separator", "type": "String"}]},
+        {"name": "valueOf", "returns": "String", "params": [{"name": "obj", "type": "Object"}]}
+      ]
+    }
+  }
+}

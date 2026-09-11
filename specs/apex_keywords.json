@@ -1,0 +1,38 @@
+{
+  "keywords": [
+    "abstract", "after", "before", "break", "catch", "class", "continue",
+    "delete", "do", "else", "enum", "extends", "false", "final", "finally",
+    "for", "get", "global", "if", "implements", "inherited", "insert",
+    "instanceof", "interface", "merge", "new", "null", "on", "override",
+    "package", "private", "protected", "public", "return", "set", "sharing",
+    "static", "super", "switch", "system", "testmethod", "this", "throw",
+    "transient", "trigger", "true", "try", "undelete", "update", "upsert",
+    "user", "virtual", "void", "webservice", "when", "while", "with",
+    "without", "user_mode", "system_mode"
+  ],
+  "soql_keywords": [
+    "above", "above_or_below", "all", "and", "as", "asc", "at", "avg", "below",
+    "by", "category", "count", "count_distinct", "cube", "custom", "data",
+    "desc", "end", "excludes", "extended", "fields", "first", "format",
+    "from", "group", "having", "in", "includes", "last", "like", "limit",
+    "max", "min", "not", "nulls", "offset", "options", "or", "order",
+    "recordvisibilitycontext", "reference", "rollup", "rows", "scope",
+    "security_enforced", "select", "standard", "sum", "supportsdelegates",
+    "supportsdomains", "then", "tolabel", "tracking", "typeof", "using",
+    "view", "viewstat", "where", "with"
+  ],
+  "primitive_types": [
+    "Blob", "Boolean", "Date", "Datetime", "Decimal", "Double",
+    "Id", "Integer", "Long", "Object", "String", "Time", "Void"
+  ],
+  "collection_types": [
+    "List", "Set", "Map"
+  ],
+  "operators": [
+    "+", "-", "*", "/", "%", "++", "--",
+    "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", ">>>=",
+    "==", "!=", "===", "!==", "<>", "<", ">", "<=", ">=",
+    "&&", "||", "!", "&", "|", "^", "~", "<<", ">>", ">>>",
+    "?", ":", "?.", "??", "=>", "@"
+  ]
+}

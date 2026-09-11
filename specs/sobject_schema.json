@@ -1,0 +1,63 @@
+{
+  "objects": {
+    "Account": {
+      "keyPrefix": "001",
+      "fields": {
+        "Id": {"type": "id", "required": false},
+        "Name": {"type": "string", "required": true},
+        "AccountNumber": {"type": "string"},
+        "AnnualRevenue": {"type": "decimal"},
+        "BillingCity": {"type": "string"},
+        "BillingCountry": {"type": "string"},
+        "Industry": {"type": "string"},
+        "Phone": {"type": "string"},
+        "Type": {"type": "string"},
+        "CreatedDate": {"type": "datetime"}
+      }
+    },
+    "Contact": {
+      "keyPrefix": "003",
+      "fields": {
+        "Id": {"type": "id", "required": false},
+        "FirstName": {"type": "string"},
+        "LastName": {"type": "string", "required": true},
+        "Email": {"type": "string"},
+        "Phone": {"type": "string"},
+        "AccountId": {"type": "id", "referenceTo": "Account"},
+        "CreatedDate": {"type": "datetime"}
+      }
+    },
+    "Opportunity": {
+      "keyPrefix": "006",
+      "fields": {
+        "Id": {"type": "id", "required": false},
+        "Name": {"type": "string", "required": true},
+        "StageName": {"type": "string", "required": true},
+        "CloseDate": {"type": "date", "required": true},
+        "Amount": {"type": "decimal"},
+        "AccountId": {"type": "id", "referenceTo": "Account"}
+      }
+    },
+    "Lead": {
+      "keyPrefix": "00Q",
+      "fields": {
+        "Id": {"type": "id", "required": false},
+        "FirstName": {"type": "string"},
+        "LastName": {"type": "string", "required": true},
+        "Company": {"type": "string", "required": true},
+        "Status": {"type": "string", "required": true},
+        "Email": {"type": "string"}
+      }
+    },
+    "Case": {
+      "keyPrefix": "500",
+      "fields": {
+        "Id": {"type": "id", "required": false},
+        "CaseNumber": {"type": "string"},
+        "Subject": {"type": "string"},
+        "Status": {"type": "string"},
+        "AccountId": {"type": "id", "referenceTo": "Account"}
+      }
+    }
+  }
+}

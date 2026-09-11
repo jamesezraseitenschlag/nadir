@@ -1,0 +1,27 @@
+# Binaries & Compiled Files
+*.exe
+*.pdb
+*.obj
+*.o
+*.dll
+*.so
+*.dylib
+bin/
+build/
+
+# Cloned Test Repositories & External Datasets
+test_repos/
+
+# Python Cache & Databases
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite
+*.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
