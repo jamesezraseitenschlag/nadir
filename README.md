@@ -220,3 +220,12 @@ python test_runner.py
 This project is licensed under the [MIT License](LICENSE).
 
 Copyright (c) 2026 James Ezra Seitenschlag.
+
+---
+
+## Disclaimer
+
+Nadir is an independent open-source project and is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Salesforce, Inc., or any of its subsidiaries or affiliates. The official Salesforce website can be found at [https://www.salesforce.com](https://www.salesforce.com).
+
+"Salesforce", "Apex", "SOQL", and related marks are registered trademarks of Salesforce, Inc.
+

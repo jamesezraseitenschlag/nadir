@@ -80,3 +80,10 @@ List<Account> accs = [SELECT Id, Name FROM Account WHERE Industry = :targetIndus
   Reference/strict identity comparison.
 - **Ternary Conditional (`?:`):**  
   `condition ? expressionIfTrue : expressionIfFalse`
+
+---
+
+## Disclaimer
+
+This document is part of the independent open-source Nadir project and is not affiliated with, sponsored by, or endorsed by Salesforce, Inc. "Salesforce" and "Apex" are trademarks of Salesforce, Inc.
+
