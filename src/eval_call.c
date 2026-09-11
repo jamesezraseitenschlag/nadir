@@ -38,8 +38,8 @@ Value eval_method_or_call(Interpreter* interp, ASTNode* node, Environment* env) 
         }
     }
 
-    // Static class method call
-    if (callee_node && callee_node->type == NODE_IDENTIFIER) {
+    // Static class method call (only if not a local/enclosing variable)
+    if (callee_node && callee_node->type == NODE_IDENTIFIER && !env_has(env, callee_node->as.identifier.name)) {
         ApexClassDef* klass = find_class(interp, callee_node->as.identifier.name);
         if (klass) {
             ApexMethod* m = find_method(interp, klass, method_name);

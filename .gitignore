@@ -28,5 +28,8 @@ __pycache__/
 *.vsix
 *.DS_Store
 
-# Local QA Suite
+# Local QA Suite & Frontend Mock
 qa_test_suite/
+local_salesforce_ui/
+lwc_test_suite/
+lwc_tests/

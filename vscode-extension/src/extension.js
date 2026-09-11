@@ -13,23 +13,86 @@ function getNadirBinaryPath() {
 
   const isWin = process.platform === 'win32';
   const binName = isWin ? 'nadir.exe' : 'nadir';
+  const homeDir = process.env.USERPROFILE || process.env.HOME || '';
+
+  const candidates = [
+    path.join(homeDir, 'ARFS', 'build', 'Release', binName),
+    path.join(homeDir, 'ARFS', 'build', binName),
+    path.join(homeDir, '.nadir', 'bin', binName)
+  ];
 
   // Check workspace build directory
   const folders = vscode.workspace.workspaceFolders;
   if (folders && folders.length > 0) {
-    const wsPath = folders[0].uri.fsPath;
-    const candidates = [
-      path.join(wsPath, 'build', 'Release', binName),
-      path.join(wsPath, 'build', binName),
-      path.join(wsPath, 'bin', binName)
-    ];
-    for (const c of candidates) {
-      if (fs.existsSync(c)) return c;
+    for (const folder of folders) {
+      const wsPath = folder.uri.fsPath;
+      candidates.unshift(
+        path.join(wsPath, 'build', 'Release', binName),
+        path.join(wsPath, 'build', binName),
+        path.join(wsPath, 'bin', binName)
+      );
     }
+  }
+
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
   }
 
   // Fallback to system path
   return binName;
+}
+
+function detectShellType() {
+  const shellPath = (vscode.env.shell || '').toLowerCase();
+  const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
+  
+  let profile = '';
+  if (process.platform === 'win32') {
+    profile = (terminalConfig.get('defaultProfile.windows') || '').toLowerCase();
+  } else if (process.platform === 'darwin') {
+    profile = (terminalConfig.get('defaultProfile.osx') || '').toLowerCase();
+  } else {
+    profile = (terminalConfig.get('defaultProfile.linux') || '').toLowerCase();
+  }
+
+  const combined = `${shellPath} ${profile}`;
+
+  if (combined.includes('powershell') || combined.includes('pwsh')) {
+    return 'powershell';
+  }
+  if (combined.includes('cmd.exe') || combined.includes('command prompt')) {
+    return 'cmd';
+  }
+  if (combined.includes('bash') || combined.includes('zsh') || combined.includes('fish') || combined.includes('sh') || combined.includes('wsl')) {
+    return 'posix';
+  }
+
+  // Default fallback based on platform
+  if (process.platform === 'win32') {
+    return 'powershell';
+  }
+  return 'posix';
+}
+
+function sendTerminalCommand(term, bin, args = '') {
+  const shellType = detectShellType();
+  let cmd = '';
+
+  if (shellType === 'powershell') {
+    // PowerShell call operator
+    cmd = `& "${bin}" ${args}`.trim();
+  } else if (shellType === 'cmd') {
+    // Windows Command Prompt
+    cmd = `"${bin}" ${args}`.trim();
+  } else if (shellType === 'posix') {
+    // Bash, Zsh, WSL, Git Bash
+    const normalizedBin = process.platform === 'win32' ? bin.replace(/\\/g, '/') : bin;
+    cmd = `"${normalizedBin}" ${args}`.trim();
+  } else {
+    cmd = `"${bin}" ${args}`.trim();
+  }
+
+  term.sendText(cmd);
 }
 
 function getTerminal() {
@@ -61,7 +124,7 @@ function activate(context) {
       term.sendText('clear');
     }
 
-    term.sendText(`"${bin}" "${filePath}"`);
+    sendTerminalCommand(term, bin, `"${filePath}"`);
   });
 
   // Command: Run Selection
@@ -78,7 +141,7 @@ function activate(context) {
     const bin = getNadirBinaryPath();
     const term = getTerminal();
     term.show();
-    term.sendText(`"${bin}"`);
+    sendTerminalCommand(term, bin);
     term.sendText(selection);
   });
 
@@ -87,7 +150,7 @@ function activate(context) {
     const bin = getNadirBinaryPath();
     const term = getTerminal();
     term.show();
-    term.sendText(`"${bin}"`);
+    sendTerminalCommand(term, bin);
   });
 
   // Command: Initialize SFDX Project & Metadata
@@ -98,7 +161,7 @@ function activate(context) {
     const bin = getNadirBinaryPath();
     const term = getTerminal();
     term.show();
-    term.sendText(`"${bin}" --init "${targetDir}"`);
+    sendTerminalCommand(term, bin, `--init "${targetDir}"`);
   });
 
   context.subscriptions.push(runFileCmd, runSelectionCmd, startReplCmd, initProjectCmd);

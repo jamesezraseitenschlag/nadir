@@ -289,13 +289,13 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
             if (coll.type != VAL_LIST || !coll.as.list_val) return val_null();
             Value last = val_null();
             ValueArray* arr = coll.as.list_val;
+            Environment* loop_env = env_new(env);
             for (int i = 0; i < arr->count; i++) {
-                Environment* loop_env = env_new(env);
                 env_define(loop_env, node->as.for_each.item_name, arr->items[i]);
                 last = interpreter_eval(interp, node->as.for_each.body, loop_env);
-                env_free(loop_env);
                 if (interp->return_flag) break;
             }
+            env_free(loop_env);
             return last;
         }
 
