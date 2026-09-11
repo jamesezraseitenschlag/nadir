@@ -1,13 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 project(nadir VERSION 1.0.0 LANGUAGES C)
 
-# Set C11 standard
+# Set ISO C11 standard
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-
-# Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Source files
 file(GLOB NADIR_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
@@ -24,13 +21,13 @@ if(MSVC)
     target_compile_definitions(nadir PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
     target_compile_options(nadir PRIVATE -Wall -Wextra -Wno-unused-parameter)
-    # Link math library on POSIX platforms (Linux, macOS, BSD)
+    # Link standard math library on POSIX platforms (Linux, macOS, BSD)
     if(NOT WIN32)
         target_link_libraries(nadir PRIVATE m)
     endif()
 endif()
 
-# Output binary naming
+# Output binary properties
 set_target_properties(nadir PROPERTIES
     OUTPUT_NAME "nadir"
     C_VISIBILITY_PRESET hidden
@@ -41,3 +38,27 @@ include(GNUInstallDirs)
 install(TARGETS nadir
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+install(FILES LICENSE README.md
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+)
+install(DIRECTORY examples/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/nadir/examples
+)
+
+# CPack configuration for distributable packages
+set(CPACK_PACKAGE_NAME "nadir")
+set(CPACK_PACKAGE_VENDOR "James Ezra Seitenschlag")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native Salesforce Apex runtime engine in ISO C11")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+if(WIN32)
+    set(CPACK_GENERATOR "ZIP;7Z")
+else()
+    set(CPACK_GENERATOR "TGZ;ZIP")
+endif()
+
+include(CPack)

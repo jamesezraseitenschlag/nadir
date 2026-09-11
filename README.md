@@ -1,19 +1,42 @@
 # Nadir - Native Salesforce Apex Runtime Engine
 
-Nadir is a lightweight, high-performance, cross-platform interpreter and runtime engine for the Salesforce Apex language, implemented in ISO C11 with zero external dependencies.
+Nadir is a lightweight, high-performance, cross-platform interpreter and runtime engine for the Salesforce Apex programming language, implemented in ISO C11 with zero external runtime dependencies.
+
+---
+
+## Dependencies & Prerequisites
+
+Nadir is deliberately designed without third-party runtime library requirements. All required development and testing tools are linked below:
+
+### Core Runtime & Build Dependencies
+- **C Standard Library**: Standard C11 runtime ([ISO/IEC 9899:2011](https://www.iso.org/standard/57853.html)) with POSIX math library ([`libm`](https://man7.org/linux/man-pages/man3/math.h.0p.html)).
+- **Build System**: [CMake](https://cmake.org/) (version 3.15 or newer).
+- **C Compiler**: Any standard-compliant C11 compiler:
+  - [GCC](https://gcc.gnu.org/) (GNU Compiler Collection, version 7.0+)
+  - [Clang / LLVM](https://clang.llvm.org/) (version 6.0+)
+  - [Microsoft Visual C++ (MSVC)](https://visualstudio.microsoft.com/) (Visual Studio 2019 or newer)
+  - [Zig](https://ziglang.org/) (`zig cc` toolchain for instant cross-compilation)
+  - [Apple Clang](https://developer.apple.com/xcode/) (Xcode 11 or newer)
+
+### Test Harness & Validation Dataset
+- **Test Automation**: [Python 3](https://www.python.org/) (version 3.7 or newer) using only the Python standard library (`subprocess`, `glob`, `os`, `sys`).
+- **Benchmark Suite**: [Salesforce Trailhead Apps Apex Recipes](https://github.com/trailheadapps/apex-recipes) for language conformance testing.
+- **Language Reference**: [Salesforce Apex Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/).
 
 ---
 
 ## Architecture Overview
 
-The runtime is designed with modularity, deterministic memory management, and cross-platform compatibility as core principles:
+The runtime is structured into modular, decoupled subsystems:
 
-- **Lexer & Tokenizer**: Case-insensitive UTF-8 stream scanner supporting Apex keywords, SOQL operators, annotations, and literals.
-- **Recursive-Descent Parser**: Grammar parser structured into dedicated subsystems for declarations, statements, expressions, and inline SOQL.
-- **Abstract Syntax Tree (AST)**: Arena-managed syntax tree nodes representing OOP constructs, control flow, collections, and database operations.
-- **Interpreter & Evaluator**: Modular tree-walking execution engine with scoped environments, call stack unwinding, and runtime error reporting.
-- **SObject & Mock Database Engine**: In-memory relational database providing SObject storage, 15/18-character Salesforce ID generation, SOQL querying, savepoints, rollback, and DML transaction tracking.
-- **Standard Library Subsystem**: Built-in mock implementations for `System`, `Math`, `String`, `JSON`, `Database`, `Test`, `Limits`, `UserInfo`, and `Schema` namespaces.
+- **Lexer & Tokenizer** ([`src/lexer.c`](file:///C:/Users/James/ARFS/src/lexer.c)): Case-insensitive UTF-8 stream scanner supporting Apex keywords, SOQL operators, annotations, and literals.
+- **Recursive-Descent Parser** ([`src/parser.c`](file:///C:/Users/James/ARFS/src/parser.c)): Modular grammar parser with dedicated modules for declarations ([`src/parser_decl.c`](file:///C:/Users/James/ARFS/src/parser_decl.c)), statements ([`src/parser_stmt.c`](file:///C:/Users/James/ARFS/src/parser_stmt.c)), expressions ([`src/parser_expr.c`](file:///C:/Users/James/ARFS/src/parser_expr.c)), and inline SOQL ([`src/parser_soql.c`](file:///C:/Users/James/ARFS/src/parser_soql.c)).
+- **Abstract Syntax Tree** ([`src/ast.c`](file:///C:/Users/James/ARFS/src/ast.c)): Arena-managed syntax tree nodes representing OOP constructs, control flow, collections, and database operations.
+- **Interpreter & Evaluator** ([`src/eval.c`](file:///C:/Users/James/ARFS/src/eval.c)): Modular tree-walking execution engine with scoped environments, call stack unwinding, and runtime error reporting.
+- **Operator Engine** ([`src/eval_op.c`](file:///C:/Users/James/ARFS/src/eval_op.c)): Arithmetic, relational, logical, and assignment operations with type coercion.
+- **Standard Library Subsystem** ([`src/eval_sys.c`](file:///C:/Users/James/ARFS/src/eval_sys.c)): Built-in mock implementations for `System`, `Math`, `String`, `JSON`, `Database`, `Test`, `Limits`, `UserInfo`, and `Schema` namespaces.
+- **Method & Dispatch Engine** ([`src/eval_call.c`](file:///C:/Users/James/ARFS/src/eval_call.c)): Dynamic dispatch for static class methods, instance methods, and collection manipulation.
+- **SObject & Mock Database Engine** ([`src/sobject.c`](file:///C:/Users/James/ARFS/src/sobject.c)): In-memory relational storage providing SObject records, 15/18-character Salesforce ID generation, SOQL querying, savepoints, rollback, and DML transaction tracking.
 
 ---
 
@@ -22,8 +45,13 @@ The runtime is designed with modularity, deterministic memory management, and cr
 ```text
 nadir/
 ├── CMakeLists.txt             # Cross-platform CMake build configuration
+├── LICENSE                    # MIT License
 ├── README.md                  # Project documentation
 ├── test_runner.py             # Automated test suite runner
+│
+├── .github/
+│   └── workflows/
+│       └── build.yml          # Multi-platform CI/CD and packaging workflow
 │
 ├── include/                   # Header declarations
 │   ├── ast.h                  # AST node types and constructors
@@ -77,26 +105,39 @@ nadir/
 
 ## Building the Project
 
-### Prerequisites
-- A standard C11 compiler (`gcc`, `clang`, `msvc`, or `zig cc`)
-- `CMake` (version 3.15 or newer)
-
-### Standard Native Build (Linux, macOS, Windows)
+### Native Build (Linux, macOS, Windows)
 
 ```bash
 cmake -B build
 cmake --build build --config Release
 ```
 
-The resulting executable will be available at:
+The resulting binary will be located at:
 - **Linux / macOS**: `build/nadir`
 - **Windows**: `build/Release/nadir.exe` (or `build/nadir.exe`)
 
 ---
 
+## Generating Distributable Packages
+
+Nadir is configured with [CPack](https://cmake.org/cmake/help/latest/module/CPack.html) to produce self-contained distributable archives (`.zip`, `.tar.gz`, `.7z`):
+
+```bash
+# 1. Build the project in Release mode
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+
+# 2. Package the release distribution
+cpack --config build/CPackConfig.cmake -C Release -B dist
+```
+
+Generated distributables in `dist/` include the runtime binary, documentation, license, and standard library examples ready for redistribution.
+
+---
+
 ## Cross-Compilation
 
-Nadir relies strictly on standard C11 and portable POSIX/C runtime interfaces, enabling seamless cross-compilation:
+Nadir relies strictly on standard C11 and portable POSIX/C runtime interfaces, enabling cross-compilation across architectures:
 
 ### 1. Cross-compiling with GCC / MinGW (Linux to Windows)
 ```bash
@@ -129,7 +170,7 @@ cmake --build build-wasm
 ## Usage
 
 ### Interactive REPL Mode
-Running the executable without parameters starts the interactive REPL:
+Running the executable without arguments launches the interactive REPL:
 
 ```bash
 ./build/nadir
@@ -151,7 +192,7 @@ Type "help", "clear", or "exit" to quit.
 ```
 
 ### Script Execution
-Execute an Apex source file directly by passing its path:
+Execute an Apex source file directly:
 
 ```bash
 ./build/nadir examples/enterprise_order_management.apex
@@ -161,7 +202,7 @@ Execute an Apex source file directly by passing its path:
 
 ## Verification & Testing
 
-Nadir is continuously validated against the Salesforce reference repository (`apex-recipes`):
+Nadir is continuously validated against the Salesforce reference repository ([`trailheadapps/apex-recipes`](https://github.com/trailheadapps/apex-recipes)):
 
 - **Suite**: 142 total files (139 Apex classes, 3 Apex triggers)
 - **Pass Rate**: 142 / 142 (100.0%)
@@ -176,4 +217,6 @@ python test_runner.py
 
 ## License
 
-This project is open-source under the MIT License.
+This project is licensed under the [MIT License](LICENSE).
+
+Copyright (c) 2026 James Ezra Seitenschlag.
