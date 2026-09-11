@@ -53,6 +53,9 @@ typedef struct Interpreter {
     ApexClassDef* classes;
     int class_count;
     int class_capacity;
+    ASTNode** ast_roots;
+    int ast_root_count;
+    int ast_root_capacity;
     bool return_flag;
     Value return_val;
     GovernorLimits limits;

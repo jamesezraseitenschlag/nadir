@@ -7,6 +7,8 @@
 #define NADIR_EVAL_INTERNAL_H
 
 #include "eval.h"
+#include "lexer.h"
+#include "parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

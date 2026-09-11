@@ -45,8 +45,9 @@ static Value run_source(const char* source, Interpreter* interp, bool is_repl) {
             val_print(res);
             printf("\n");
         }
+    } else if (program) {
+        ast_node_free(program);
     }
-    ast_node_free(program);
     return res;
 }
 
@@ -140,7 +141,15 @@ static void start_repl(void) {
 
 int main(int argc, char* argv[]) {
     if (argc > 1) {
-        run_file(argv[1]);
+        Interpreter* interp = interpreter_new();
+        for (int i = 1; i < argc; i++) {
+            char* source = read_file(argv[i]);
+            if (source) {
+                run_source(source, interp, false);
+                free(source);
+            }
+        }
+        interpreter_free(interp);
     } else {
         start_repl();
     }

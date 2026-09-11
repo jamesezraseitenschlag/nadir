@@ -15,6 +15,9 @@ Interpreter* interpreter_new(void) {
     interp->classes = NULL;
     interp->class_count = 0;
     interp->class_capacity = 0;
+    interp->ast_roots = NULL;
+    interp->ast_root_count = 0;
+    interp->ast_root_capacity = 0;
     interp->return_flag = false;
     interp->return_val = val_null();
 
@@ -45,6 +48,12 @@ void interpreter_free(Interpreter* interp) {
             if (interp->classes[i].methods) free(interp->classes[i].methods);
         }
         free(interp->classes);
+    }
+    if (interp->ast_roots) {
+        for (int i = 0; i < interp->ast_root_count; i++) {
+            ast_node_free(interp->ast_roots[i]);
+        }
+        free(interp->ast_roots);
     }
     free(interp);
 }
@@ -83,11 +92,52 @@ void interpreter_register_class(Interpreter* interp, ASTNode* class_decl) {
 }
 
 ApexClassDef* find_class(Interpreter* interp, const char* name) {
+    if (!interp || !name) return NULL;
     for (int i = 0; i < interp->class_count; i++) {
         if (string_equal_case(interp->classes[i].name, name)) {
             return &interp->classes[i];
         }
     }
+
+    char path[512];
+    snprintf(path, sizeof(path), "%s.cls", name);
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        snprintf(path, sizeof(path), "%s.apex", name);
+        f = fopen(path, "rb");
+    }
+    if (f) {
+        fseek(f, 0L, SEEK_END);
+        size_t sz = ftell(f);
+        rewind(f);
+        char* src = (char*)malloc(sz + 1);
+        if (src) {
+            fread(src, sizeof(char), sz, f);
+            src[sz] = '\0';
+            fclose(f);
+            Lexer l;
+            lexer_init(&l, src);
+            Parser p;
+            parser_init(&p, &l);
+            ASTNode* prog = parser_parse(&p);
+            if (prog && prog->type == NODE_PROGRAM) {
+                for (int i = 0; i < prog->as.program.statements.count; i++) {
+                    if (prog->as.program.statements.nodes[i]->type == NODE_CLASS_DECL) {
+                        interpreter_register_class(interp, prog->as.program.statements.nodes[i]);
+                    }
+                }
+            }
+            free(src);
+        } else {
+            fclose(f);
+        }
+        for (int i = 0; i < interp->class_count; i++) {
+            if (string_equal_case(interp->classes[i].name, name)) {
+                return &interp->classes[i];
+            }
+        }
+    }
+
     return NULL;
 }
 
@@ -413,5 +463,12 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
 }
 
 Value interpreter_run(Interpreter* interp, ASTNode* program) {
+    if (interp && program) {
+        if (interp->ast_root_count + 1 > interp->ast_root_capacity) {
+            interp->ast_root_capacity = interp->ast_root_capacity < 8 ? 8 : interp->ast_root_capacity * 2;
+            interp->ast_roots = (ASTNode**)realloc(interp->ast_roots, sizeof(ASTNode*) * interp->ast_root_capacity);
+        }
+        interp->ast_roots[interp->ast_root_count++] = program;
+    }
     return interpreter_eval(interp, program, interp->global_env);
 }
