@@ -171,6 +171,29 @@ int main(int argc, char* argv[]) {
             if (strcmp(argv[i], "--init") == 0 || strcmp(argv[i], "init") == 0) {
                 const char* p = (i + 1 < argc) ? argv[++i] : ".";
                 nadir_project_init(p, interp);
+            } else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
+                run_source(argv[++i], interp, false);
+            } else if (strcmp(argv[i], "-") == 0) {
+                // Read entire stdin and execute as batch script
+                size_t cap = 65536;
+                size_t len = 0;
+                char* buf = (char*)malloc(cap);
+                if (buf) {
+                    size_t n;
+                    while ((n = fread(buf + len, 1, cap - len - 1, stdin)) > 0) {
+                        len += n;
+                        if (len + 1024 >= cap) {
+                            cap *= 2;
+                            buf = (char*)realloc(buf, cap);
+                            if (!buf) break;
+                        }
+                    }
+                    if (buf) {
+                        buf[len] = '\0';
+                        run_source(buf, interp, false);
+                        free(buf);
+                    }
+                }
             } else {
                 char* source = read_file(argv[i]);
                 if (source) {

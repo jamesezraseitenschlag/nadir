@@ -8,6 +8,7 @@
 *.dylib
 bin/
 build/
+build*/
 dist/_CPack_Packages/
 
 # Cloned Test Repositories & External Datasets

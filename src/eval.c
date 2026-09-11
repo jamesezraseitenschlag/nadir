@@ -426,15 +426,25 @@ Value interpreter_eval(Interpreter* interp, ASTNode* node, Environment* env) {
                 if (string_equal_case(op, "delete")) return mock_db_delete(target.as.sobject_val);
                 if (string_equal_case(op, "undelete") || string_equal_case(op, "merge")) return target;
             } else if (target.type == VAL_LIST && target.as.list_val) {
-                for (int i = 0; i < target.as.list_val->count; i++) {
-                    Value item = target.as.list_val->items[i];
+                // Bulk DML: gather the SObjects and hand the whole statement to
+                // the storage layer once, so the transaction timestamp, the id
+                // sequence and the table capacity growth are all amortised over
+                // the batch instead of repeating per row.
+                ValueArray* arr = target.as.list_val;
+                SObject** batch = (SObject**)malloc(sizeof(SObject*) * (size_t)(arr->count > 0 ? arr->count : 1));
+                if (!batch) abort();
+                int n = 0;
+                for (int i = 0; i < arr->count; i++) {
+                    Value item = arr->items[i];
                     if (item.type == VAL_SOBJECT && item.as.sobject_val) {
-                        interp->limits.dml_rows++;
-                        if (string_equal_case(op, "insert") || string_equal_case(op, "upsert")) mock_db_insert(item.as.sobject_val);
-                        if (string_equal_case(op, "update")) mock_db_update(item.as.sobject_val);
-                        if (string_equal_case(op, "delete")) mock_db_delete(item.as.sobject_val);
+                        batch[n++] = item.as.sobject_val;
                     }
                 }
+                interp->limits.dml_rows += n;
+                if (n > 0) {
+                    mock_db_dml_bulk(op, batch, n);
+                }
+                free(batch);
                 return target;
             }
             return val_null();

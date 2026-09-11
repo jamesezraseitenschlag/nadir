@@ -21,26 +21,10 @@ typedef enum {
     VAL_NATIVE_FN
 } ValueType;
 
-struct Value;
 struct SObject;
 struct ApexInstance;
-
-typedef struct ValueArray {
-    struct Value* items;
-    int count;
-    int capacity;
-} ValueArray;
-
-typedef struct MapEntry {
-    struct Value* key;
-    struct Value* value;
-} MapEntry;
-
-typedef struct ValueMap {
-    MapEntry* entries;
-    int count;
-    int capacity;
-} ValueMap;
+struct ValueArray;
+struct ValueMap;
 
 typedef struct Value (*NativeFn)(int arg_count, struct Value* args);
 
@@ -51,13 +35,32 @@ typedef struct Value {
         double double_val;
         bool bool_val;
         char* string_val;
-        ValueArray* list_val;
-        ValueMap* map_val;
+        struct ValueArray* list_val;
+        struct ValueMap* map_val;
         struct SObject* sobject_val;
         struct ApexInstance* instance_val;
         NativeFn native_fn;
     } as;
 } Value;
+
+typedef struct ValueArray {
+    Value* items;
+    int count;
+    int capacity;
+} ValueArray;
+
+typedef struct MapEntry {
+    uint64_t hash;
+    Value key;
+    Value value;
+    bool occupied;
+} MapEntry;
+
+typedef struct ValueMap {
+    MapEntry* entries;
+    int count;
+    int capacity;
+} ValueMap;
 
 // Value Constructors
 Value val_null(void);
