@@ -1,5 +1,7 @@
 # Salesforce Apex Language & Runtime Reference
 
+> i am too lazy to translate myself so theres a slop translation for you
+
 This document summarizes the core specifications and runtime semantics of the Salesforce Apex programming language relevant to parser, compiler, and interpreter implementations.
 
 ---
