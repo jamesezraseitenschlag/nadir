@@ -14,7 +14,7 @@ Nadir is deliberately designed without third-party runtime library requirements.
 - **C Compiler**: Any standard-compliant C11 compiler:
   - [GCC](https://gcc.gnu.org/) (GNU Compiler Collection, version 7.0+)
   - [Clang / LLVM](https://clang.llvm.org/) (version 6.0+)
-  - [Microsoft Visual C++ (MSVC)](https://visualstudio.microsoft.com/) (Visual Studio 2019 or newer)
+  - [Microslop Visual C++ (MSVC)](https://visualstudio.microsoft.com/) (Visual Studio 2019 or newer)
   - [Zig](https://ziglang.org/) (`zig cc` toolchain for instant cross-compilation)
   - [Apple Clang](https://developer.apple.com/xcode/) (Xcode 11 or newer)
 
