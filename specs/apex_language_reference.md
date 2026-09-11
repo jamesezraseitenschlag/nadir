@@ -1,51 +1,51 @@
 # Salesforce Apex Language & Runtime Reference
 
-Dieses Dokument fasst die wichtigsten Spezifikationen und Verhaltensweisen der Apex-Sprache zusammen, die für die Implementierung eines Interpreters oder Compilers relevant sind.
+This document summarizes the core specifications and runtime semantics of the Salesforce Apex programming language relevant to parser, compiler, and interpreter implementations.
 
 ---
 
-## 1. Lexikalische Besonderheiten
+## 1. Lexical Semantics
 
 - **Case-Insensitivity:**  
-  Apex unterscheidet **nicht** zwischen Groß- und Kleinschreibung bei Bezeichnern (Variablen, Methoden, Klassen, SOQL-Keywords):
+  Apex is fully case-insensitive for all identifiers, keywords, types, and SOQL clauses:  
   `System.debug` == `system.DEBUG` == `SYSTEM.Debug`
-- **String Literale:**  
-  Apex verwendet standardmäßig einfache Anführungszeichen `'Mein String'`. Escaping erfolgt über `\'` und `\\`.
-- **Kommentare:**  
-  Einzeilig `// ...` und mehrzeilig `/* ... */`.
+- **String Literals:**  
+  Apex uses single-quoted strings: `'My String'`. Escaping is performed via `\'` and `\\`.
+- **Comments:**  
+  Single-line comments using `// ...` and multi-line block comments using `/* ... */`.
 
 ---
 
-## 2. Typensystem
+## 2. Type System
 
-### Primitive Typen
-- `Blob`: Binärdaten
-- `Boolean`: `true` / `false` / `null`
-- `Date`: Nur Datum (`YYYY-MM-DD`)
-- `Datetime`: Datum + Uhrzeit (`YYYY-MM-DDTHH:MM:SSZ`)
-- `Decimal`: Beliebig genaue Fließkommazahl (Standard für Währungen/Berechnungen)
-- `Double`: 64-Bit Gleitkommazahl
-- `Id`: 15- oder 18-stellige hexadezimale Salesforce-Objekt-ID (z. B. `001000000000001AAA`)
-- `Integer`: 32-Bit Ganzzahl
-- `Long`: 64-Bit Ganzzahl
-- `Object`: Basistyp für alle Objekte
-- `String`: Zeichenkette
-- `Time`: Reine Uhrzeit
+### Primitive Types
+- `Blob`: Binary data payload
+- `Boolean`: `true` / `false` / `null` (three-valued logic)
+- `Date`: Calendar date without time component (`YYYY-MM-DD`)
+- `Datetime`: ISO timestamp with timezone/UTC component (`YYYY-MM-DDTHH:MM:SSZ`)
+- `Decimal`: Arbitrary-precision floating point number (standard for financial calculations and currency)
+- `Double`: 64-bit IEEE 754 floating point number
+- `Id`: 15-character or 18-character case-safe alphanumeric Salesforce identifier (e.g. `001000000000001AAA`)
+- `Integer`: 32-bit signed integer
+- `Long`: 64-bit signed integer
+- `Object`: Universal base type for all reference objects and primitives
+- `String`: UTF-8 character sequence
+- `Time`: Pure time-of-day value
 
 ### Collections
-- `List<T>`: Geordnete Liste mit Indexzugriff (`[index]` oder `.get(index)`, `.add(item)`, `.size()`).
-  - Initializer: `new List<String>{'A', 'B'}`
-- `Set<T>`: Ungeordnete Menge eindeutiger Werte (`.add(item)`, `.contains(item)`).
-- `Map<K, V>`: Schlüssel-Wert-Paare (`.put(k, v)`, `.get(k)`, `.keySet()`, `.values()`).
-  - Initializer: `new Map<String, Integer>{'A' => 1, 'B' => 2}`
+- `List<T>`: Ordered collection with indexed element access (`[index]` or `.get(index)`, `.add(item)`, `.size()`).
+  - Literal initialization: `new List<String>{'A', 'B'}`
+- `Set<T>`: Unordered collection of unique values (`.add(item)`, `.contains(item)`).
+- `Map<K, V>`: Hash table mapping keys to values (`.put(k, v)`, `.get(k)`, `.keySet()`, `.values()`).
+  - Literal initialization: `new Map<String, Integer>{'A' => 1, 'B' => 2}`
 
 ### SObjects (Salesforce Objects)
-- Typisierte Datenbank-Objekte wie `Account`, `Contact`, `Opportunity` oder Custom Objects `Custom_Object__c`.
-- Dynamischer Feldzugriff möglich (`acc.put('Name', 'Acme')`, `acc.get('Name')`).
+- Strongly typed database entity models such as standard entities (`Account`, `Contact`, `Opportunity`) and custom entities (`Custom_Object__c`).
+- Dynamic field manipulation via `.put(fieldName, value)` and `.get(fieldName)`.
 
 ---
 
-## 3. DML-Operationen & SOQL
+## 3. DML Operations & SOQL
 
 ### DML Statements
 - `insert <record | list>;`
@@ -55,11 +55,12 @@ Dieses Dokument fasst die wichtigsten Spezifikationen und Verhaltensweisen der A
 - `undelete <record | list>;`
 
 ### Inline SOQL Syntax
-In Apex werden SOQL-Queries direkt in eckigen Klammern formuliert:
+SOQL queries are embedded directly within square brackets:
 ```apex
 List<Account> accs = [SELECT Id, Name FROM Account WHERE Industry = 'Technology' LIMIT 10];
 ```
-Mit Variablen-Binding (`:`-Präfix):
+
+Variable binding utilizes the `:` prefix:
 ```apex
 String targetIndustry = 'Technology';
 List<Account> accs = [SELECT Id, Name FROM Account WHERE Industry = :targetIndustry];
@@ -67,8 +68,13 @@ List<Account> accs = [SELECT Id, Name FROM Account WHERE Industry = :targetIndus
 
 ---
 
-## 4. Spezielle Operatoren
+## 4. Special Operators
 
-- Safe Navigation Operator (`?.`):  
-  Verhindert `NullPointerException`. `acc?.Contacts[0]?.Name` evaluiert zu `null`, wenn ein Zwischenglied `null` ist.
-- Ternärer Operator (`?:`): `cond ? val1 : val2`
+- **Safe Navigation Operator (`?.`):**  
+  Prevents `NullPointerException` during deep dereferencing. `acc?.Contacts[0]?.Name` evaluates to `null` if any intermediate property evaluates to `null`.
+- **Null Coalescing Operator (`??`):**  
+  Evaluates to the right-hand operand when the left-hand operand is `null`: `String name = acc.Name ?? 'Default';`
+- **Exact Equality (`===` / `!==`):**  
+  Reference/strict identity comparison.
+- **Ternary Conditional (`?:`):**  
+  `condition ? expressionIfTrue : expressionIfFalse`
