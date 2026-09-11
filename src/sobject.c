@@ -332,7 +332,7 @@ int mock_db_set_savepoint(void) {
         dst_t->auto_id_seq = src_t->auto_id_seq;
         dst_t->records = (SObject**)malloc(sizeof(SObject*) * (src_t->record_count > 0 ? src_t->record_count : 1));
         for (int r = 0; r < src_t->record_count; r++) {
-            dst_t->records[r] = sobject_clone(src_t->records[r]);
+            dst_t->records[r] = src_t->records[r];
         }
     }
     return sp_id;
@@ -354,9 +354,6 @@ void mock_db_rollback(int savepoint_id) {
 
     // restore table states
     for (int t = 0; t < db->table_count; t++) {
-        for (int r = 0; r < db->tables[t].record_count; r++) {
-            sobject_free(db->tables[t].records[r]);
-        }
         if (db->tables[t].records) free(db->tables[t].records);
         if (db->tables[t].object_name) free(db->tables[t].object_name);
     }
@@ -375,7 +372,7 @@ void mock_db_rollback(int savepoint_id) {
         dst_t->auto_id_seq = src_t->auto_id_seq;
         dst_t->records = (SObject**)malloc(sizeof(SObject*) * (src_t->record_count > 0 ? src_t->record_count : 1));
         for (int r = 0; r < src_t->record_count; r++) {
-            dst_t->records[r] = sobject_clone(src_t->records[r]);
+            dst_t->records[r] = src_t->records[r];
         }
     }
 }
