@@ -364,8 +364,10 @@ ASTNode* parse_primary(Parser* parser) {
         return expr;
     }
 
-    fprintf(stderr, "[Line %d] Parser Error: Unexpected token '%.*s'\n",
-            parser->current.line, parser->current.length, parser->current.start);
+    if (!parser->silent_mode) {
+        fprintf(stderr, "[Line %d] Parser Error: Unexpected token '%.*s'\n",
+                parser->current.line, parser->current.length, parser->current.start);
+    }
     parser->had_error = true;
     advance_token(parser);
     return NULL;

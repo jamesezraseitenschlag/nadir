@@ -4,6 +4,7 @@
 // nadir runtime thingy
 
 #include "sobject.h"
+#include "metadata.h"
 #include <time.h>
 
 SObject* sobject_new(const char* type_name) {
@@ -148,6 +149,19 @@ static bool validate_sfdc_schema_rules(SObject* obj, char* err_buf, size_t err_s
         if (last_name.type == VAL_NULL) {
             snprintf(err_buf, err_sz, "DmlException: Required fields are missing: [LastName]");
             return false;
+        }
+    }
+
+    MetaObject* meta = project_schema_get_object(obj->type_name);
+    if (meta) {
+        for (int f = 0; f < meta->field_count; f++) {
+            if (meta->fields[f].required) {
+                Value fv = sobject_get(obj, meta->fields[f].full_name);
+                if (fv.type == VAL_NULL || (fv.type == VAL_STRING && strlen(fv.as.string_val) == 0)) {
+                    snprintf(err_buf, err_sz, "DmlException: Required fields are missing: [%s]", meta->fields[f].full_name);
+                    return false;
+                }
+            }
         }
     }
     return true;

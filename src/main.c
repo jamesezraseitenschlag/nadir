@@ -7,6 +7,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "eval.h"
+#include "metadata.h"
 
 static Value run_source(const char* source, Interpreter* interp, bool is_repl) {
     Lexer lexer;
@@ -90,7 +91,26 @@ static void start_repl(void) {
                 continue;
             }
             if (STRNCASECMP(trimmed, "help", 4) == 0) {
-                printf("commands: exit, clear, help, import(<path>)\n\n");
+                printf("commands: exit, clear, help, import(<path>), init([path])\n\n");
+                continue;
+            }
+            if (STRNCASECMP(trimmed, "init", 4) == 0 || STRNCASECMP(trimmed, "project_init", 12) == 0) {
+                const char* cmd_name = STRNCASECMP(trimmed, "init", 4) == 0 ? "init" : "project_init";
+                int clen = (int)strlen(cmd_name);
+                char* p = trimmed + clen;
+                while (*p == ' ' || *p == '\t' || *p == '(') p++;
+                if (*p == '\'' || *p == '"') p++;
+                char path_buf[512] = {0};
+                int plen = 0;
+                while (*p && *p != '\'' && *p != '"' && *p != ')' && *p != ';' && plen < 510) {
+                    path_buf[plen++] = *p++;
+                }
+                while (plen > 0 && (path_buf[plen - 1] == ' ' || path_buf[plen - 1] == '\t')) {
+                    path_buf[--plen] = '\0';
+                }
+                path_buf[plen] = '\0';
+                const char* target_path = plen > 0 ? path_buf : ".";
+                nadir_project_init(target_path, interp);
                 continue;
             }
             if (STRNCASECMP(trimmed, "import", 6) == 0) {
@@ -148,10 +168,15 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         Interpreter* interp = interpreter_new();
         for (int i = 1; i < argc; i++) {
-            char* source = read_file(argv[i]);
-            if (source) {
-                run_source(source, interp, false);
-                free(source);
+            if (strcmp(argv[i], "--init") == 0 || strcmp(argv[i], "init") == 0) {
+                const char* p = (i + 1 < argc) ? argv[++i] : ".";
+                nadir_project_init(p, interp);
+            } else {
+                char* source = read_file(argv[i]);
+                if (source) {
+                    run_source(source, interp, false);
+                    free(source);
+                }
             }
         }
         interpreter_free(interp);

@@ -9,6 +9,7 @@ void parser_init(Parser* parser, Lexer* lexer) {
     parser->lexer = lexer;
     parser->had_error = false;
     parser->panic_mode = false;
+    parser->silent_mode = false;
     parser->current = lexer_next_token(lexer);
 }
 
@@ -18,8 +19,10 @@ void advance_token(Parser* parser) {
         parser->current = lexer_next_token(parser->lexer);
         if (parser->current.type != TOKEN_ERROR) break;
 
-        fprintf(stderr, "[Line %d] Lexer Error: %.*s\n",
-                parser->current.line, parser->current.length, parser->current.start);
+        if (!parser->silent_mode) {
+            fprintf(stderr, "[Line %d] Lexer Error: %.*s\n",
+                    parser->current.line, parser->current.length, parser->current.start);
+        }
         parser->had_error = true;
     }
 }
@@ -39,8 +42,10 @@ void consume_token(Parser* parser, TokenType type, const char* message) {
         advance_token(parser);
         return;
     }
-    fprintf(stderr, "[Line %d] Parser Error at '%.*s': %s\n",
-            parser->current.line, parser->current.length, parser->current.start, message);
+    if (!parser->silent_mode) {
+        fprintf(stderr, "[Line %d] Parser Error at '%.*s': %s\n",
+                parser->current.line, parser->current.length, parser->current.start, message);
+    }
     parser->had_error = true;
 }
 
@@ -55,8 +60,10 @@ char* consume_identifier_name(Parser* parser, const char* message) {
         advance_token(parser);
         return duplicate_slice(parser->previous.start, parser->previous.length);
     }
-    fprintf(stderr, "[Line %d] Parser Error at '%.*s': %s\n",
-            parser->current.line, parser->current.length, parser->current.start, message);
+    if (!parser->silent_mode) {
+        fprintf(stderr, "[Line %d] Parser Error at '%.*s': %s\n",
+                parser->current.line, parser->current.length, parser->current.start, message);
+    }
     parser->had_error = true;
     return duplicate_string("error");
 }

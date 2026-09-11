@@ -15,6 +15,7 @@ typedef struct Parser {
     Token previous;
     bool had_error;
     bool panic_mode;
+    bool silent_mode;
 } Parser;
 
 void parser_init(Parser* parser, Lexer* lexer);

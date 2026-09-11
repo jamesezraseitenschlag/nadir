@@ -4,6 +4,7 @@
 // nadir runtime thingy
 
 #include "eval_internal.h"
+#include "metadata.h"
 #include <time.h>
 #include <math.h>
 
@@ -226,7 +227,12 @@ Value eval_system_builtins(Interpreter* interp, ASTNode* node, Environment* env,
     if (string_equal_case(receiver, "schema")) {
         *handled = true;
         if (string_equal_case(method_name, "getglobaldescribe")) {
-            return val_map();
+            Value map = val_map();
+            ProjectSchema* ps = project_schema_get_instance();
+            for (int i = 0; i < ps->object_count; i++) {
+                val_map_put(&map, val_string(ps->objects[i].full_name), val_string(ps->objects[i].label));
+            }
+            return map;
         }
         return val_null();
     }
