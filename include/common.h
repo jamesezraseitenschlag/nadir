@@ -6,6 +6,10 @@
 #ifndef NADIR_COMMON_H
 #define NADIR_COMMON_H
 
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
