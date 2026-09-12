@@ -6,7 +6,7 @@
 *.dll
 *.so
 *.dylib
-bin/
+/bin/
 build/
 build*/
 dist/_CPack_Packages/

@@ -7,6 +7,7 @@ on:
     branches: [ main, master ]
   release:
     types: [ published ]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -52,3 +53,71 @@ jobs:
         with:
           name: nadir-${{ matrix.os }}
           path: dist/nadir-*
+
+      - name: Upload binary executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: nadir-bin-${{ matrix.os }}
+          path: |
+            build/nadir
+            build/Release/nadir.exe
+            build/nadir.exe
+
+  publish-npm:
+    name: Publish to GitHub Packages
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: nadir-bin-ubuntu-latest
+          path: npm/bin/artifacts/ubuntu
+
+      - name: Download macOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: nadir-bin-macos-latest
+          path: npm/bin/artifacts/macos
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: nadir-bin-windows-latest
+          path: npm/bin/artifacts/windows
+
+      - name: Stage platform binaries for npm
+        shell: bash
+        run: |
+          mkdir -p npm/bin
+          cp npm/bin/artifacts/ubuntu/nadir npm/bin/nadir-linux-x64 || true
+          cp npm/bin/artifacts/macos/nadir npm/bin/nadir-darwin-arm64 || true
+          cp npm/bin/artifacts/macos/nadir npm/bin/nadir-darwin-x64 || true
+          if [ -f npm/bin/artifacts/windows/Release/nadir.exe ]; then
+            cp npm/bin/artifacts/windows/Release/nadir.exe npm/bin/nadir-win32-x64.exe
+          elif [ -f npm/bin/artifacts/windows/nadir.exe ]; then
+            cp npm/bin/artifacts/windows/nadir.exe npm/bin/nadir-win32-x64.exe
+          fi
+          chmod +x npm/bin/nadir-* npm/bin/nadir.js || true
+          rm -rf npm/bin/artifacts
+          ls -la npm/bin
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@jamesezraseitenschlag'
+
+      - name: Publish to GitHub Packages
+        run: |
+          cd npm
+          npm publish || echo "Package already published or not ready"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

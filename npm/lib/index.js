@@ -4,19 +4,26 @@ const fs = require('fs');
 
 function getNadirBinary() {
   const isWin = process.platform === 'win32';
-  const binName = isWin ? 'nadir.exe' : 'nadir';
+  const binExt = isWin ? '.exe' : '';
+  const arch = process.arch;
+  const platform = process.platform;
+
+  if (process.env.NADIR_BIN && fs.existsSync(process.env.NADIR_BIN)) {
+    return process.env.NADIR_BIN;
+  }
 
   const candidates = [
-    path.join(__dirname, '..', '..', 'build', 'Release', binName),
-    path.join(__dirname, '..', '..', 'build', binName),
-    path.join(__dirname, '..', 'bin', binName),
-    process.env.NADIR_BIN
-  ].filter(Boolean);
+    path.join(__dirname, '..', 'bin', `nadir-${platform}-${arch}${binExt}`),
+    path.join(__dirname, '..', 'bin', `nadir-${platform}-x64${binExt}`),
+    path.join(__dirname, '..', 'bin', `nadir${binExt}`),
+    path.join(__dirname, '..', '..', 'build', 'Release', `nadir${binExt}`),
+    path.join(__dirname, '..', '..', 'build', `nadir${binExt}`)
+  ];
 
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
-  return binName;
+  return isWin ? 'nadir.exe' : 'nadir';
 }
 
 function runFile(filePath, options = {}) {

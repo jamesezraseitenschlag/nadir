@@ -1,11 +1,18 @@
 {
-  "name": "@nadir/cli",
+  "name": "@jamesezraseitenschlag/nadir",
   "version": "1.0.1",
   "description": "Cross-platform Node.js wrapper for the Nadir native Salesforce Apex runtime engine",
   "main": "lib/index.js",
   "bin": {
     "nadir": "./bin/nadir.js",
     "nadir-apex": "./bin/nadir.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamesezraseitenschlag/nadir.git"
   },
   "scripts": {
     "test": "node bin/nadir.js --help"
