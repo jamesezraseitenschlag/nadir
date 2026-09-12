@@ -2,7 +2,7 @@
   "name": "nadir-apex-runner",
   "displayName": "Nadir Apex Runner",
   "description": "Lightning-fast native Salesforce Apex execution, REPL, and SFDX metadata environment for VS Code",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "james-seitenschlag",
   "engines": {
     "vscode": "^1.75.0"

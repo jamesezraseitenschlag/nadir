@@ -690,7 +690,7 @@ static void daemon_http_event_handler(struct mg_connection* c, int ev, void* ev_
     if (mg_match(hm->uri, mg_str("/"), NULL) || mg_match(hm->uri, mg_str("/status"), NULL) || mg_match(hm->uri, mg_str("/health"), NULL)) {
         char status_json[256];
         snprintf(status_json, sizeof(status_json),
-                 "{\"status\": \"ONLINE\", \"server\": \"Nadir Native C11 API Daemon\", \"version\": \"1.0.0\", \"port\": %d}",
+                 "{\"status\": \"ONLINE\", \"server\": \"Nadir Native C11 API Daemon\", \"version\": \"1.0.1\", \"port\": %d}",
                  g_daemon_port);
         send_json_response(c, 200, "OK", status_json);
         return;

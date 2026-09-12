@@ -1,6 +1,6 @@
 {
   "name": "@nadir/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Cross-platform Node.js wrapper for the Nadir native Salesforce Apex runtime engine",
   "main": "lib/index.js",
   "bin": {

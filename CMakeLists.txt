@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(nadir VERSION 1.0.0 LANGUAGES C)
+project(nadir VERSION 1.0.1 LANGUAGES C)
 
 # Set ISO C11 standard
 set(CMAKE_C_STANDARD 11)
@@ -23,7 +23,10 @@ if(MSVC)
 else()
     target_compile_options(nadir PRIVATE -Wall -Wextra -Wno-unused-parameter)
     # Link standard math library on POSIX platforms (Linux, macOS, BSD)
-    if(NOT WIN32)
+    if(APPLE)
+        target_compile_definitions(nadir PRIVATE _DARWIN_C_SOURCE)
+        target_link_libraries(nadir PRIVATE m)
+    elseif(NOT WIN32)
         target_compile_definitions(nadir PRIVATE _POSIX_C_SOURCE=200809L _DEFAULT_SOURCE)
         target_link_libraries(nadir PRIVATE m)
     else()

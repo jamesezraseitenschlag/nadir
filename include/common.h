@@ -6,8 +6,17 @@
 #ifndef NADIR_COMMON_H
 #define NADIR_COMMON_H
 
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
-#define _POSIX_C_SOURCE 200809L
+#if defined(__APPLE__) || defined(__MACH__)
+  #ifndef _DARWIN_C_SOURCE
+    #define _DARWIN_C_SOURCE 1
+  #endif
+#elif !defined(_WIN32)
+  #ifndef _POSIX_C_SOURCE
+    #define _POSIX_C_SOURCE 200809L
+  #endif
+  #ifndef _DEFAULT_SOURCE
+    #define _DEFAULT_SOURCE 1
+  #endif
 #endif
 
 #include <stdio.h>
