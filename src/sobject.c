@@ -866,14 +866,10 @@ Value mock_db_query(const char* from_obj, const char** fields, int field_count,
                 !field_name_eq(src->fields[at].name, fname)) {
                 at = sobject_locate(src, fname, plan->fields[f].hash, strlen(fname));
             }
-            sobject_set_field_at(out, f,
-                                 (char*)sobject_intern_field(fname),
-                                 plan->fields[f].hash,
-                                 at >= 0 ? src->fields[at].value : val_null());
+            sobject_put(out, fname, at >= 0 ? src->fields[at].value : val_null());
         }
 
-        sobject_set_field_at(out, field_count, (char*)sobject_intern_field("Id"),
-                             sobject_field_hash("Id"), src->fields[id_at].value);
+        sobject_put(out, (char*) "Id", src->fields[id_at].value);
 
         val_list_add(&result_list, val_sobject(out));
 
